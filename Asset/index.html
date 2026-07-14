@@ -324,6 +324,26 @@
 
   function fmtVal(v){ return (v===undefined || v===null || String(v).trim()==='' || v==='#N/A') ? '—' : v; }
 
+  /* Link foto di sheet biasanya berupa link "share" (OneDrive/SharePoint/Google Drive),
+     bukan link gambar langsung. Fungsi ini mencoba mengubahnya jadi link yang bisa
+     langsung dibaca sebagai <img>. Link tetap harus dibagikan sebagai "Anyone with the
+     link can view" - kalau masih perlu login, gambar tidak akan pernah muncul di browser. */
+  function photoUrl(raw){
+    const url = (raw||'').trim();
+    if(!url || url==='#N/A') return '';
+    try{
+      if(/sharepoint\.com|onedrive\.live\.com|1drv\.ms/i.test(url)){
+        if(/download=1/i.test(url)) return url;
+        return url + (url.includes('?') ? '&' : '?') + 'download=1';
+      }
+      const gdriveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+      if(gdriveMatch) return `https://drive.google.com/uc?export=view&id=${gdriveMatch[1]}`;
+      const gdriveOpen = url.match(/[?&]id=([^&]+)/);
+      if(/drive\.google\.com/i.test(url) && gdriveOpen) return `https://drive.google.com/uc?export=view&id=${gdriveOpen[1]}`;
+    }catch(e){ /* biarkan url asli kalau gagal parse */ }
+    return url;
+  }
+
   function statusInfo(raw){
     const v = (raw||'').trim().toLowerCase();
     if(v==='ya') return {cls:'ya', label:'Aktif'};
@@ -468,14 +488,14 @@
       </div>
       <div class="dossier-body">
         <div class="main-section">
-          ${photoFrame(a['Foto Utama'], 'Foto Utama')}
+          ${photoFrame(photoUrl(a['Foto Utama']), 'Foto Utama')}
           <div class="spec-table">${specRows}</div>
         </div>
         <p class="views-heading">Tampak Sekeliling</p>
         <div class="views-grid">
-          ${viewFrame(a['Foto Kiri'], 'Tampak Kiri')}
-          ${viewFrame(a['Foto Kanan'], 'Tampak Kanan')}
-          ${viewFrame(a['Foto Belakang'], 'Tampak Belakang')}
+          ${viewFrame(photoUrl(a['Foto Kiri']), 'Tampak Kiri')}
+          ${viewFrame(photoUrl(a['Foto Kanan']), 'Tampak Kanan')}
+          ${viewFrame(photoUrl(a['Foto Belakang']), 'Tampak Belakang')}
         </div>
         ${a['Keterangan'] ? `<div class="note-box"><b>Keterangan:</b> ${a['Keterangan']}</div>` : ''}
       </div>
