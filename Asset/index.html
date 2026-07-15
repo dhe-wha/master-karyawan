@@ -181,6 +181,29 @@
 
   ::-webkit-scrollbar{width:10px;}
   ::-webkit-scrollbar-thumb{background:var(--panel-alt); border-radius:10px;}
+
+  /* ---------- Dashboard Karyawan ---------- */
+  .kry-note{font-family:var(--font-mono); font-size:11px; color:var(--text-dim); letter-spacing:.3px; margin:0; flex-basis:100%;}
+  .kry-note b{color:var(--text);}
+  .kry-grid{display:grid; grid-template-columns:repeat(2, 1fr); gap:16px;}
+  @media (max-width:820px){.kry-grid{grid-template-columns:1fr;}}
+  .kry-card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:20px 22px;}
+  .kry-card.wide{grid-column:1/-1;}
+  .kry-card h3{font-family:var(--font-display); text-transform:uppercase; font-size:15px; font-weight:600; letter-spacing:.3px; margin:0 0 16px; color:var(--text);}
+  .bar-row{display:flex; align-items:center; gap:12px; margin-bottom:12px;}
+  .bar-row:last-child{margin-bottom:0;}
+  .bar-row .label{width:190px; flex-shrink:0; color:var(--text-dim); font-family:var(--font-mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; line-height:1.3;}
+  .bar-track{flex:1; background:var(--panel-alt); border-radius:6px; height:10px; overflow:hidden;}
+  .bar-fill{height:100%; background:var(--amber); border-radius:6px;}
+  .bar-fill.green{background:var(--green);}
+  .bar-fill.red{background:var(--red);}
+  .bar-value{width:54px; text-align:right; font-weight:700; flex-shrink:0; font-size:13px;}
+  .kry-table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  .kry-table td{padding:10px 4px; border-bottom:1px solid var(--border);}
+  .kry-table td:first-child{color:var(--text-dim); font-family:var(--font-mono); font-size:11.5px; text-transform:uppercase; letter-spacing:.3px;}
+  .kry-table td:last-child{text-align:right; font-weight:600; font-family:var(--font-mono);}
+  .kry-table tr.total td{border-top:2px solid var(--amber); border-bottom:none; font-weight:700; color:var(--amber); padding-top:14px;}
+  .kry-table tr.total td:first-child{color:var(--amber);}
 </style>
 </head>
 <body>
@@ -210,7 +233,7 @@
       <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
     </div>
     <div class="submenu" id="hrSubmenu">
-      <div class="sub-item">Karyawan</div>
+      <div class="sub-item" data-page="karyawan">Karyawan</div>
       <div class="sub-item">BPJS</div>
       <div class="sub-item">Rekrutmen</div>
       <div class="sub-item">Perubahan Status</div>
@@ -336,6 +359,46 @@
           </thead>
           <tbody id="assetTableBody"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Halaman Dashboard Karyawan (Human Resources > Karyawan) ===== -->
+  <div class="asset-view" id="page-karyawan" style="display:none;">
+    <div class="grid-texture"></div>
+    <div class="wrap">
+      <div class="sticky-bar">
+        <header class="asset-header">
+          <div>
+            <p class="eyebrow">Human Resources &middot; Ringkasan Karyawan</p>
+            <h1 class="asset-title">Dashboard Karyawan</h1>
+          </div>
+          <div class="stat-strip">
+            <div class="stat"><div class="n" id="kryTotal">0</div><div class="l">Total Karyawan</div></div>
+            <div class="stat"><div class="n" id="kryMasukTotal">0</div><div class="l">Masuk (YTD)</div></div>
+            <div class="stat"><div class="n" id="kryKeluarTotal">0</div><div class="l">Keluar (YTD)</div></div>
+          </div>
+        </header>
+
+        <div class="controls">
+          <div class="group-select">
+            <select id="kryTahunFilter"></select>
+          </div>
+          <div class="group-select">
+            <select id="kryPtFilter">
+              <option value="semua">Semua PT</option>
+            </select>
+          </div>
+          <button class="refresh-btn" id="kryRefreshBtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+            Refresh
+          </button>
+          <p class="kry-note" id="kryNote"></p>
+        </div>
+      </div>
+
+      <div class="kry-grid" id="kryGrid">
+        <div class="state-msg" id="kryLoadingMsg">Memuat data dari Google Sheet...</div>
       </div>
     </div>
   </div>
@@ -634,6 +697,273 @@
     });
   });
 
+  /* =====================================================================
+     DASHBOARD KARYAWAN (Human Resources > Karyawan)
+     Sumber data: Google Sheet "Summary" - satu baris = Bulan + PT + Departemen.
+     PERHATIAN: beberapa header kolom di sheet ini duplikat ("Non Lokal",
+     "Mutasi", "Promosi" muncul 2x untuk konteks masuk/keluar berbeda),
+     jadi sheet ini di-parse TANPA header (array kolom) dan dipetakan
+     manual berdasarkan posisi kolom, bukan berdasarkan nama header.
+     Kolom "Bulan" adalah cell yang di-merge di Google Sheet, sehingga saat
+     diekspor ke CSV nilainya kosong untuk baris ke-2/3/dst dalam bulan yang
+     sama - nilai bulan di-"forward fill" dari baris terakhir yang terisi.
+     ===================================================================== */
+  const KRY_SHEET_ID = '1j7zwbjzMeiaBeNIUFgzWbCiIUg9uQcR-FKABAQlivV0';
+  const KRY_SHEET_NAME = 'Summary';
+  const KRY_CSV_URL = `https://docs.google.com/spreadsheets/d/${KRY_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(KRY_SHEET_NAME)}`;
+  const MONTH_ORDER = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  let KRY_ROWS = [];
+  let kryLoaded = false;
+  let kryTahunValue = null;
+  let kryPtValue = 'semua';
+
+  function kryParseNum(v){
+    if(v===undefined || v===null) return 0;
+    const s = String(v).trim();
+    if(s==='' || s==='-' || s==='#N/A') return 0;
+    const n = parseFloat(s.replace(/,/g,''));
+    return isNaN(n) ? 0 : n;
+  }
+
+  function kryFmtRupiah(n){
+    return 'Rp ' + Math.round(n).toLocaleString('id-ID');
+  }
+
+  function loadKaryawanData(){
+    const grid = document.getElementById('kryGrid');
+    grid.innerHTML = `<div class="state-msg" id="kryLoadingMsg">Memuat data dari Google Sheet...</div>`;
+    const btn = document.getElementById('kryRefreshBtn');
+    btn.classList.add('spinning');
+
+    Papa.parse(KRY_CSV_URL, {
+      download:true,
+      header:false,
+      skipEmptyLines:true,
+      complete: function(results){
+        btn.classList.remove('spinning');
+        const raw = results.data || [];
+        const dataRows = raw.slice(1); // baris pertama adalah header, dilewati
+        let lastBulan = '';
+        KRY_ROWS = dataRows.map(cols=>{
+          let bulan = (cols[0]||'').trim();
+          if(bulan){ lastBulan = bulan; } else { bulan = lastBulan; }
+          const parts = bulan.split('-');
+          const monthAbbr = parts[0] || '';
+          const yy = parts[1] || '';
+          const tahun = yy ? (2000+parseInt(yy,10)) : null;
+          const monthIdx = MONTH_ORDER.indexOf(monthAbbr);
+          return {
+            bulan, tahun, monthIdx,
+            sortKey: (tahun||0)*100 + (monthIdx>=0?monthIdx:0),
+            pt: (cols[1]||'').trim(),
+            dept: (cols[2]||'').trim(),
+            total: kryParseNum(cols[3]),
+            kabLokal: kryParseNum(cols[4]),
+            kabNonLokal: kryParseNum(cols[5]),
+            provLokal: kryParseNum(cols[6]),
+            provNonLokal: kryParseNum(cols[7]),
+            masukPenambahan: kryParseNum(cols[8]),
+            masukPenggantian: kryParseNum(cols[9]),
+            masukMutasi: kryParseNum(cols[10]),
+            masukPromosi: kryParseNum(cols[11]),
+            keluarResign: kryParseNum(cols[12]),
+            keluarMutasi: kryParseNum(cols[13]),
+            keluarPromosi: kryParseNum(cols[14]),
+            keluarHabisKontrak: kryParseNum(cols[15]),
+            keluarMeninggal: kryParseNum(cols[16]),
+            genderL: kryParseNum(cols[17]),
+            genderP: kryParseNum(cols[18]),
+            statusBulanan: kryParseNum(cols[19]),
+            statusSKU: kryParseNum(cols[20]),
+            statusPKWT: kryParseNum(cols[21]),
+            statusBHL: kryParseNum(cols[22]),
+            pangkatStaff: kryParseNum(cols[23]),
+            pangkatMandor1: kryParseNum(cols[24]),
+            pangkatMandorKerani: kryParseNum(cols[25]),
+            pangkatWorker: kryParseNum(cols[26]),
+            gajiBruto: kryParseNum(cols[27]),
+            gajiNetto: kryParseNum(cols[28]),
+            klasDesaBinaan: kryParseNum(cols[29]),
+            klasKecamatan: kryParseNum(cols[30]),
+            klasKabupaten: kryParseNum(cols[31]),
+            klasProvinsi: kryParseNum(cols[32]),
+            klasSulawesi: kryParseNum(cols[33]),
+            klasNonSulawesi: kryParseNum(cols[34]),
+          };
+        }).filter(r => r.pt && r.dept);
+
+        kryPopulateFilters();
+        kryLoaded = true;
+        renderKaryawan();
+      },
+      error: function(){
+        btn.classList.remove('spinning');
+        grid.innerHTML = `<div class="state-msg error">Gagal memuat data dari Google Sheet.<br>Pastikan sheet dibagikan sebagai "Anyone with the link can view".<br><button id="kryRetryBtn">Coba Lagi</button></div>`;
+        const retry = document.getElementById('kryRetryBtn');
+        if(retry) retry.addEventListener('click', loadKaryawanData);
+      }
+    });
+  }
+
+  function kryPopulateFilters(){
+    const tahunSel = document.getElementById('kryTahunFilter');
+    const ptSel = document.getElementById('kryPtFilter');
+
+    const tahuns = Array.from(new Set(KRY_ROWS.map(r=>r.tahun).filter(Boolean))).sort((a,b)=>b-a);
+    const curTahun = kryTahunValue || tahuns[0];
+    tahunSel.innerHTML = tahuns.map(t=>`<option value="${t}">${t}</option>`).join('');
+    tahunSel.value = tahuns.includes(curTahun) ? curTahun : tahuns[0];
+    kryTahunValue = parseInt(tahunSel.value, 10);
+
+    const pts = Array.from(new Set(KRY_ROWS.map(r=>r.pt).filter(Boolean))).sort();
+    const curPt = kryPtValue || 'semua';
+    ptSel.innerHTML = `<option value="semua">Semua PT</option>` + pts.map(p=>`<option value="${p}">${p}</option>`).join('');
+    ptSel.value = (curPt==='semua' || pts.includes(curPt)) ? curPt : 'semua';
+    kryPtValue = ptSel.value;
+  }
+
+  function renderBarList(containerId, entries, colorClass){
+    const el = document.getElementById(containerId);
+    if(!el) return;
+    const max = Math.max(...entries.map(e=>e.value), 1);
+    el.innerHTML = entries.map(e => `
+      <div class="bar-row">
+        <div class="label">${e.label}</div>
+        <div class="bar-track"><div class="bar-fill ${colorClass||''}" style="width:${(e.value/max*100).toFixed(1)}%"></div></div>
+        <div class="bar-value">${e.value.toLocaleString('id-ID')}</div>
+      </div>`).join('');
+  }
+
+  function renderGajiTable(containerId, deptEntries, total){
+    const el = document.getElementById(containerId);
+    if(!el) return;
+    const rows = deptEntries.map(e => `<tr><td>${e.label}</td><td>${kryFmtRupiah(e.value)}</td></tr>`).join('');
+    el.innerHTML = `${rows}<tr class="total"><td>Total</td><td>${kryFmtRupiah(total)}</td></tr>`;
+  }
+
+  function renderKaryawan(){
+    if(!kryLoaded) return;
+    const grid = document.getElementById('kryGrid');
+
+    const rowsInYear = KRY_ROWS.filter(r => r.tahun===kryTahunValue && (kryPtValue==='semua' || r.pt===kryPtValue));
+
+    if(rowsInYear.length===0){
+      grid.innerHTML = `<div class="state-msg">Tidak ada data untuk filter ini.</div>`;
+      document.getElementById('kryTotal').textContent = '0';
+      document.getElementById('kryMasukTotal').textContent = '0';
+      document.getElementById('kryKeluarTotal').textContent = '0';
+      document.getElementById('kryNote').innerHTML = '';
+      return;
+    }
+
+    /* Snapshot bulan terakhir yang tersedia di tahun ini dipakai untuk data
+       "jumlah/stok" karyawan (per PT, departemen, gender, status, dst).
+       Data masuk/keluar dijumlah sepanjang semua bulan di tahun tsb (YTD). */
+    const maxSortKey = Math.max(...rowsInYear.map(r=>r.sortKey));
+    const snapshotRows = rowsInYear.filter(r=>r.sortKey===maxSortKey);
+    const snapshotBulanLabel = snapshotRows[0] ? snapshotRows[0].bulan : '';
+
+    const sum = (rows, field) => rows.reduce((s,r)=>s+r[field], 0);
+    const groupSum = (rows, keyField, valField) => {
+      const map = {};
+      rows.forEach(r=>{ const k=r[keyField]; map[k]=(map[k]||0)+r[valField]; });
+      return map;
+    };
+
+    const totalKry = sum(snapshotRows, 'total');
+    const byPT = groupSum(snapshotRows, 'pt', 'total');
+    const byDept = groupSum(snapshotRows, 'dept', 'total');
+
+    const kabLokal = sum(snapshotRows,'kabLokal'), kabNonLokal = sum(snapshotRows,'kabNonLokal');
+    const provLokal = sum(snapshotRows,'provLokal'), provNonLokal = sum(snapshotRows,'provNonLokal');
+
+    const masukTotal = sum(rowsInYear,'masukPenambahan')+sum(rowsInYear,'masukPenggantian')+sum(rowsInYear,'masukMutasi')+sum(rowsInYear,'masukPromosi');
+    const keluarTotal = sum(rowsInYear,'keluarResign')+sum(rowsInYear,'keluarMutasi')+sum(rowsInYear,'keluarPromosi')+sum(rowsInYear,'keluarHabisKontrak')+sum(rowsInYear,'keluarMeninggal');
+
+    const genderL = sum(snapshotRows,'genderL'), genderP = sum(snapshotRows,'genderP');
+    const statusBulanan = sum(snapshotRows,'statusBulanan'), statusSKU = sum(snapshotRows,'statusSKU'), statusPKWT = sum(snapshotRows,'statusPKWT'), statusBHL = sum(snapshotRows,'statusBHL');
+    const pangkatStaff = sum(snapshotRows,'pangkatStaff'), pangkatMandor1 = sum(snapshotRows,'pangkatMandor1'), pangkatMandorKerani = sum(snapshotRows,'pangkatMandorKerani'), pangkatWorker = sum(snapshotRows,'pangkatWorker');
+    const klasDesaBinaan = sum(snapshotRows,'klasDesaBinaan'), klasKecamatan = sum(snapshotRows,'klasKecamatan'), klasKabupaten = sum(snapshotRows,'klasKabupaten'), klasProvinsi = sum(snapshotRows,'klasProvinsi'), klasSulawesi = sum(snapshotRows,'klasSulawesi'), klasNonSulawesi = sum(snapshotRows,'klasNonSulawesi');
+
+    const gajiBrutoByDept = groupSum(snapshotRows, 'dept', 'gajiBruto');
+    const gajiNettoByDept = groupSum(snapshotRows, 'dept', 'gajiNetto');
+    const totalBruto = sum(snapshotRows,'gajiBruto');
+    const totalNetto = sum(snapshotRows,'gajiNetto');
+
+    document.getElementById('kryTotal').textContent = totalKry.toLocaleString('id-ID');
+    document.getElementById('kryMasukTotal').textContent = masukTotal.toLocaleString('id-ID');
+    document.getElementById('kryKeluarTotal').textContent = keluarTotal.toLocaleString('id-ID');
+    document.getElementById('kryNote').innerHTML = `Data jumlah karyawan per <b>${snapshotBulanLabel}</b>. Data masuk/keluar akumulasi sepanjang tahun <b>${kryTahunValue}</b>.`;
+
+    grid.innerHTML = `
+      <div class="kry-card"><h3>Karyawan per PT</h3><div class="bar-list" id="kryByPT"></div></div>
+      <div class="kry-card wide"><h3>Karyawan per Departemen</h3><div class="bar-list" id="kryByDept"></div></div>
+      <div class="kry-card"><h3>Lokal / Non-Lokal &middot; by Kabupaten</h3><div class="bar-list" id="kryKab"></div></div>
+      <div class="kry-card"><h3>Lokal / Non-Lokal &middot; by Provinsi</h3><div class="bar-list" id="kryProv"></div></div>
+      <div class="kry-card"><h3>Karyawan Masuk per Kategori (YTD)</h3><div class="bar-list" id="kryMasukList"></div></div>
+      <div class="kry-card"><h3>Karyawan Keluar per Kategori (YTD)</h3><div class="bar-list" id="kryKeluarList"></div></div>
+      <div class="kry-card"><h3>Karyawan per Gender</h3><div class="bar-list" id="kryGender"></div></div>
+      <div class="kry-card"><h3>Karyawan per Status</h3><div class="bar-list" id="kryStatus"></div></div>
+      <div class="kry-card"><h3>Karyawan per Pangkat</h3><div class="bar-list" id="kryPangkat"></div></div>
+      <div class="kry-card"><h3>Karyawan per Klasifikasi</h3><div class="bar-list" id="kryKlasifikasi"></div></div>
+      <div class="kry-card wide"><h3>Gaji Bruto per Departemen</h3><table class="kry-table" id="kryGajiBruto"></table></div>
+      <div class="kry-card wide"><h3>Gaji Netto per Departemen</h3><table class="kry-table" id="kryGajiNetto"></table></div>
+    `;
+
+    renderBarList('kryByPT', Object.entries(byPT).map(([k,v])=>({label:k,value:v})));
+    renderBarList('kryByDept', Object.entries(byDept).map(([k,v])=>({label:k,value:v})).sort((a,b)=>b.value-a.value));
+    renderBarList('kryKab', [{label:'Lokal',value:kabLokal},{label:'Non Lokal',value:kabNonLokal}]);
+    renderBarList('kryProv', [{label:'Lokal',value:provLokal},{label:'Non Lokal',value:provNonLokal}]);
+    renderBarList('kryMasukList', [
+      {label:'Penambahan', value: sum(rowsInYear,'masukPenambahan')},
+      {label:'Penggantian', value: sum(rowsInYear,'masukPenggantian')},
+      {label:'Mutasi', value: sum(rowsInYear,'masukMutasi')},
+      {label:'Promosi', value: sum(rowsInYear,'masukPromosi')},
+    ], 'green');
+    renderBarList('kryKeluarList', [
+      {label:'Resign', value: sum(rowsInYear,'keluarResign')},
+      {label:'Mutasi', value: sum(rowsInYear,'keluarMutasi')},
+      {label:'Promosi', value: sum(rowsInYear,'keluarPromosi')},
+      {label:'Habis Kontrak', value: sum(rowsInYear,'keluarHabisKontrak')},
+      {label:'Meninggal', value: sum(rowsInYear,'keluarMeninggal')},
+    ], 'red');
+    renderBarList('kryGender', [{label:'Laki-laki',value:genderL},{label:'Perempuan',value:genderP}]);
+    renderBarList('kryStatus', [
+      {label:'Bulanan', value: statusBulanan},
+      {label:'SKU', value: statusSKU},
+      {label:'PKWT', value: statusPKWT},
+      {label:'BHL', value: statusBHL},
+    ]);
+    renderBarList('kryPangkat', [
+      {label:'Staff', value: pangkatStaff},
+      {label:'Mandor 1 / Kerani 1', value: pangkatMandor1},
+      {label:'Mandor / Kerani / Operator', value: pangkatMandorKerani},
+      {label:'Worker', value: pangkatWorker},
+    ]);
+    renderBarList('kryKlasifikasi', [
+      {label:'Desa Binaan', value: klasDesaBinaan},
+      {label:'Satu Kecamatan', value: klasKecamatan},
+      {label:'Satu Kabupaten', value: klasKabupaten},
+      {label:'Satu Provinsi', value: klasProvinsi},
+      {label:'Sulawesi', value: klasSulawesi},
+      {label:'Non Sulawesi', value: klasNonSulawesi},
+    ]);
+
+    renderGajiTable('kryGajiBruto', Object.entries(gajiBrutoByDept).map(([k,v])=>({label:k,value:v})).sort((a,b)=>b.value-a.value), totalBruto);
+    renderGajiTable('kryGajiNetto', Object.entries(gajiNettoByDept).map(([k,v])=>({label:k,value:v})).sort((a,b)=>b.value-a.value), totalNetto);
+  }
+
+  document.getElementById('kryTahunFilter').addEventListener('change', e=>{
+    kryTahunValue = parseInt(e.target.value,10);
+    renderKaryawan();
+  });
+  document.getElementById('kryPtFilter').addEventListener('change', e=>{
+    kryPtValue = e.target.value;
+    renderKaryawan();
+  });
+  document.getElementById('kryRefreshBtn').addEventListener('click', loadKaryawanData);
+
   /* ===================== SIDEBAR NAVIGATION ===================== */
   function toggleSubmenu(key){
     const toggle = document.getElementById(key+'Toggle');
@@ -647,8 +977,12 @@
 
   function showPage(page, label){
     document.getElementById('page-kendaraan').style.display = (page==='kendaraan') ? '' : 'none';
-    document.getElementById('page-placeholder').style.display = (page==='kendaraan') ? 'none' : '';
-    if(page!=='kendaraan'){
+    document.getElementById('page-karyawan').style.display = (page==='karyawan') ? '' : 'none';
+    document.getElementById('page-placeholder').style.display = (page==='kendaraan' || page==='karyawan') ? 'none' : '';
+    if(page==='karyawan' && !kryLoaded){
+      loadKaryawanData();
+    }
+    if(page!=='kendaraan' && page!=='karyawan'){
       document.getElementById('placeholderTitle').textContent = label;
       document.getElementById('crumb').textContent = 'Menu aktif: ' + label;
     }
