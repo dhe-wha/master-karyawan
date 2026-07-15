@@ -570,6 +570,20 @@
 
   const iconVehicle = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><circle cx="7" cy="17" r="1.5"/><circle cx="17" cy="17" r="1.5"/></svg>`;
 
+  /* Dipanggil lewat onerror="cardThumbError(this)" pada <img> thumbnail kartu aset.
+     CATATAN: sebelumnya SVG iconVehicle (yang berisi banyak tanda kutip ganda) langsung
+     ditulis inline di dalam atribut onerror="..." (juga pakai kutip ganda) - begitu
+     onerror benar-benar terpicu (link foto rusak/butuh login), tanda kutip di dalam SVG
+     memutus atribut onerror lebih awal dan sisa markup jadi teks acak di kartu (mis. DT15,
+     DT20, DT11, DT12 yang link "Foto Utama"-nya tidak bisa diakses publik). Fungsi global
+     ini menghindari masalah itu karena tidak ada markup yang dituliskan inline di atribut. */
+  function cardThumbError(imgEl){
+    const parent = imgEl.parentElement;
+    if(!parent) return;
+    parent.classList.remove('thumb');
+    parent.innerHTML = iconVehicle;
+  }
+
   function fmtVal(v){ return (v===undefined || v===null || String(v).trim()==='' || v==='#N/A') ? '—' : v; }
 
   /* Link foto di sheet biasanya berupa link "share" (OneDrive/SharePoint/Google Drive),
@@ -682,7 +696,7 @@
       const driver = a['User_Driver']; // 3. User_Driver
       const thumb = photoUrl(a['Foto Utama']);
       const iconHtml = thumb
-        ? `<img src="${thumb}" alt="${fmtVal(nama)}" loading="lazy" onerror="this.parentElement.classList.remove('thumb'); this.remove(); this.parentElement.innerHTML='${iconVehicle.replace(/'/g, "\\'")}';">`
+        ? `<img src="${thumb}" alt="${fmtVal(nama)}" loading="lazy" onerror="cardThumbError(this)">`
         : iconVehicle;
       return `
         <div class="card" tabindex="0" data-no="${a['No']}">
@@ -727,9 +741,14 @@
 
   /* Kolom foto di sheet (opsional): "Foto Utama", "Foto Kiri", "Foto Kanan", "Foto Belakang".
      Jika kolom belum ada / kosong, otomatis tampil placeholder "Foto belum tersedia". */
+  /* Kalau link foto ada tapi gagal dimuat (mis. link SharePoint belum di-share
+     "Anyone with the link can view" / sudah kedaluwarsa), onerror akan mengganti
+     frame ini dengan tampilan placeholder "Foto belum tersedia" yang sama seperti
+     kalau kolomnya memang kosong - daripada dibiarkan jadi ikon broken-image bawaan
+     browser yang membingungkan. */
   function photoFrame(url, label){
     if(url){
-      return `<div class="photo-frame"><img src="${url}" alt="${label}">
+      return `<div class="photo-frame"><img src="${url}" alt="${label}" data-label="${label}" data-kind="main" onerror="mediaFrameError(this)">
         <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
         <span class="photo-label">${label}</span></div>`;
     }
@@ -739,11 +758,22 @@
 
   function viewFrame(url, label){
     if(url){
-      return `<div class="view-frame"><img src="${url}" alt="${label}">
+      return `<div class="view-frame"><img src="${url}" alt="${label}" data-label="${label}" data-kind="view" onerror="mediaFrameError(this)">
         <span class="corner tl" style="width:11px;height:11px;"></span><span class="corner br" style="width:11px;height:11px;"></span>
         <span class="photo-label" style="font-size:8.5px;">${label}</span></div>`;
     }
     return `<div class="view-frame"><span class="no-photo" style="font-size:10px;">${label}<br>belum tersedia</span></div>`;
+  }
+
+  function mediaFrameError(imgEl){
+    const label = imgEl.dataset.label || '';
+    const isMain = imgEl.dataset.kind === 'main';
+    const frame = imgEl.closest(isMain ? '.photo-frame' : '.view-frame');
+    if(!frame) return;
+    frame.outerHTML = isMain
+      ? `<div class="photo-frame"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+          <span class="no-photo">Foto ${label.toLowerCase()}<br>belum tersedia</span></div>`
+      : `<div class="view-frame"><span class="no-photo" style="font-size:10px;">${label}<br>belum tersedia</span></div>`;
   }
 
   function openDossier(no){
