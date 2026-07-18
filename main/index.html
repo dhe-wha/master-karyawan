@@ -191,6 +191,12 @@
   .kry-card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:20px 22px;}
   .kry-card.wide{grid-column:1/-1;}
   .kry-card h3{font-family:var(--font-display); text-transform:uppercase; font-size:15px; font-weight:600; letter-spacing:.3px; margin:0 0 16px; color:var(--text);}
+  .card-head-row{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; flex-wrap:wrap;}
+  .card-head-row h3{margin:0;}
+  .chart-type-toggle{display:flex; gap:4px; background:var(--panel-alt); border:1px solid var(--border); border-radius:8px; padding:3px;}
+  .chart-type-toggle button{background:transparent; border:none; color:var(--text-dim); font-family:var(--font-mono); font-size:10.5px; letter-spacing:.5px; text-transform:uppercase; padding:6px 12px; border-radius:6px; cursor:pointer; transition:.15s;}
+  .chart-type-toggle button.active{background:var(--panel); color:var(--text); box-shadow:inset 0 0 0 1px var(--border);}
+  .chart-type-toggle button:hover{color:var(--text);}
 
   /* ---------- Dashboard (landing page: charts) ---------- */
   .chart-box{position:relative; height:300px;}
@@ -579,7 +585,13 @@
 
       <div class="kry-grid" id="dashGrid">
         <div class="kry-card wide">
-          <h3>Jumlah Karyawan per PT per Bulan</h3>
+          <div class="card-head-row">
+            <h3>Jumlah Karyawan per PT per Bulan</h3>
+            <div class="chart-type-toggle" id="dashTrendTypeToggle">
+              <button type="button" data-type="line" class="active">Line</button>
+              <button type="button" data-type="bar">Bar</button>
+            </div>
+          </div>
           <div class="chart-box tall"><canvas id="dashLineChart"></canvas></div>
         </div>
         <div class="kry-card">
@@ -1306,6 +1318,7 @@
      ===================================================================== */
   let dashTahunValue = null;
   let dashPtValue = 'semua';
+  let dashTrendChartType = 'line';
   let dashLineChart = null, dashPieKabChart = null, dashPieProvChart = null, dashDoughnutChart = null;
   const DASH_PT_COLORS = { BJA:'#E8A33D', BTL:'#4C8DF5', IGL:'#3FB6A8' };
   const DASH_PT_FALLBACK_COLORS = ['#F2B705','#E08A3E','#9AA1B4','#8FCB84','#E8825A'];
@@ -1313,6 +1326,31 @@
   function dashPtColor(pt, idx){
     return DASH_PT_COLORS[pt] || DASH_PT_FALLBACK_COLORS[idx % DASH_PT_FALLBACK_COLORS.length];
   }
+
+  /* Plugin ringan buatan sendiri untuk menampilkan nilai data langsung di atas
+     titik/bar - supaya tidak perlu tambah dependency CDN baru (chartjs-plugin-datalabels). */
+  const dashDataLabelsPlugin = {
+    id: 'dashDataLabels',
+    afterDatasetsDraw(chart){
+      const { ctx } = chart;
+      chart.data.datasets.forEach((dataset, dsIndex) => {
+        const meta = chart.getDatasetMeta(dsIndex);
+        if(meta.hidden) return;
+        meta.data.forEach((element, index) => {
+          const value = dataset.data[index];
+          if(value === null || value === undefined || value === 0) return;
+          ctx.save();
+          ctx.fillStyle = dataset.borderColor || dataset.backgroundColor || '#ECEAE4';
+          ctx.font = "10px 'IBM Plex Mono', monospace";
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          const pos = element.tooltipPosition ? element.tooltipPosition() : element.getCenterPoint();
+          ctx.fillText(value, pos.x, pos.y - 6);
+          ctx.restore();
+        });
+      });
+    }
+  };
 
   function dashPopulateFilters(){
     const tahunSel = document.getElementById('dashTahunFilter');
@@ -1369,29 +1407,40 @@
       ? Array.from(new Set(yearRows.map(r=>r.pt))).sort()
       : [dashPtValue];
 
+    const isBar = dashTrendChartType === 'bar';
     const lineDatasets = ptsForLine.map((pt, idx)=>{
       const data = months.map(bulan=> yearRows.filter(r=>r.pt===pt && r.bulan===bulan).reduce((s,r)=>s+r.total,0));
       const color = dashPtColor(pt, idx);
-      return {
+      const base = {
         label: pt,
         data,
         borderColor: color,
-        backgroundColor: color,
-        tension: 0.3,
-        borderWidth: 2.5,
-        pointRadius: 3,
-        pointBackgroundColor: color,
+        backgroundColor: isBar ? color + 'CC' : color,
       };
+      if(isBar){
+        base.borderWidth = 0;
+        base.borderRadius = 4;
+        base.maxBarThickness = 34;
+      } else {
+        base.tension = 0.3;
+        base.borderWidth = 2.5;
+        base.pointRadius = 3;
+        base.pointBackgroundColor = color;
+        base.fill = false;
+      }
+      return base;
     });
 
     if(dashLineChart) dashLineChart.destroy();
     dashLineChart = new Chart(document.getElementById('dashLineChart'), {
-      type: 'line',
+      type: dashTrendChartType,
       data: { labels: months, datasets: lineDatasets },
+      plugins: [dashDataLabelsPlugin],
       options: {
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
+        layout: { padding: { top: 16 } },
         plugins: {
           legend: { labels: { color: '#9BA3A0', font: { family: 'IBM Plex Mono', size: 11 } } },
           tooltip: { titleFont:{family:'IBM Plex Mono'}, bodyFont:{family:'IBM Plex Mono'} },
@@ -1469,6 +1518,15 @@
     const klasTotal = Object.values(klas).reduce((a,b)=>a+b,0);
     document.getElementById('dashDoughnutNote').textContent = klasTotal ? `Total ${klasTotal} karyawan` : 'Tidak ada data.';
   }
+
+  document.querySelectorAll('#dashTrendTypeToggle button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(btn.dataset.type === dashTrendChartType) return;
+      dashTrendChartType = btn.dataset.type;
+      document.querySelectorAll('#dashTrendTypeToggle button').forEach(b=>b.classList.toggle('active', b===btn));
+      renderDashboardCharts();
+    });
+  });
 
   document.getElementById('dashTahunFilter').addEventListener('change', e=>{
     dashTahunValue = parseInt(e.target.value,10);
