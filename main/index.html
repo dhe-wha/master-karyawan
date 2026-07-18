@@ -609,6 +609,17 @@
           <div class="chart-box"><canvas id="dashDoughnutChart"></canvas></div>
           <p class="chart-legend-note" id="dashDoughnutNote"></p>
         </div>
+        <div class="kry-card wide">
+          <div class="card-head-row">
+            <h3>Total Kendaraan per Kelompok</h3>
+            <div class="chart-type-toggle" id="dashVehicleFilterToggle">
+              <button type="button" data-filter="semua" class="active">Semua</button>
+              <button type="button" data-filter="wajib">Wajib Pajak</button>
+            </div>
+          </div>
+          <div class="chart-box tall"><canvas id="dashVehicleBarChart"></canvas></div>
+          <p class="chart-legend-note" id="dashVehicleNote"></p>
+        </div>
       </div>
     </div>
   </div>
@@ -717,6 +728,7 @@
         ASSETS = (results.data||[]).filter(r => r['Kode Aset'] && r['Kode Aset'].trim()!=='');
         populateGroupFilter();
         renderGrid();
+        if(typeof renderDashVehicleChart === 'function') renderDashVehicleChart();
       },
       error: function(err){
         btn.classList.remove('spinning');
@@ -1556,6 +1568,155 @@
     document.getElementById('dashDoughnutNote').textContent = klasTotal ? `Total ${klasTotal} karyawan` : 'Tidak ada data.';
   }
 
+  /* =====================================================================
+     Total Kendaraan per Kelompok (bar 3D) - sumber data sheet "Kendaraan"
+     yang sama dengan halaman General Affair > Kendaraan (variabel ASSETS).
+     Plugin di bawah sengaja dibuat berdiri sendiri (tidak berbagi kode
+     dengan dashDataLabelsPlugin/dashDoughnutLabelsPlugin) supaya perubahan
+     di sini tidak bisa memengaruhi chart lain yang sudah berjalan baik.
+     ===================================================================== */
+  let dashVehicleChart = null;
+  let dashVehicleFilter = 'semua'; // 'semua' | 'wajib'
+  const DASH_VEHICLE_3D_DEPTH = 7;
+
+  function shadeHexColor(hex, percent){
+    hex = (hex||'#4C8DF5').replace('#','');
+    if(hex.length===3) hex = hex.split('').map(c=>c+c).join('');
+    const num = parseInt(hex, 16);
+    let r = (num >> 16) + Math.round(2.55*percent);
+    let g = ((num >> 8) & 0x00FF) + Math.round(2.55*percent);
+    let b = (num & 0x0000FF) + Math.round(2.55*percent);
+    r = Math.max(0, Math.min(255, r));
+    g = Math.max(0, Math.min(255, g));
+    b = Math.max(0, Math.min(255, b));
+    return '#' + (0x1000000 + r*0x10000 + g*0x100 + b).toString(16).slice(1);
+  }
+
+  /* Menggambar "tutup atas" + "sisi kanan" di setiap bar supaya terlihat
+     seperti balok 3D - Chart.js sendiri sudah menggambar sisi depan (rect
+     datar) secara normal, plugin ini cuma menambah 2 bidang semu di atasnya. */
+  const dashVehicle3DPlugin = {
+    id: 'dashVehicle3D',
+    afterDatasetsDraw(chart){
+      const { ctx } = chart;
+      const depth = DASH_VEHICLE_3D_DEPTH;
+      chart.data.datasets.forEach((dataset, dsIndex) => {
+        const meta = chart.getDatasetMeta(dsIndex);
+        if(meta.hidden) return;
+        meta.data.forEach((bar, index) => {
+          const value = dataset.data[index];
+          if(!value) return;
+          const colorRaw = Array.isArray(dataset.backgroundColor) ? dataset.backgroundColor[index] : dataset.backgroundColor;
+          const color = colorRaw || '#4C8DF5';
+          const left = bar.x - bar.width/2;
+          const right = bar.x + bar.width/2;
+          const top = bar.y;
+          const base = bar.base;
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(left, top);
+          ctx.lineTo(left+depth, top-depth);
+          ctx.lineTo(right+depth, top-depth);
+          ctx.lineTo(right, top);
+          ctx.closePath();
+          ctx.fillStyle = shadeHexColor(color, 25);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(right, top);
+          ctx.lineTo(right+depth, top-depth);
+          ctx.lineTo(right+depth, base-depth);
+          ctx.lineTo(right, base);
+          ctx.closePath();
+          ctx.fillStyle = shadeHexColor(color, -20);
+          ctx.fill();
+          ctx.restore();
+        });
+      });
+    }
+  };
+
+  const dashVehicleLabelsPlugin = {
+    id: 'dashVehicleLabels',
+    afterDatasetsDraw(chart){
+      const { ctx } = chart;
+      const meta = chart.getDatasetMeta(0);
+      if(!meta || meta.hidden) return;
+      const dataset = chart.data.datasets[0];
+      meta.data.forEach((bar, index) => {
+        const value = dataset.data[index];
+        if(!value) return;
+        ctx.save();
+        ctx.font = "bold 11px 'IBM Plex Mono', monospace";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = '#ECEAE4';
+        ctx.fillText(String(value), bar.x, bar.y - DASH_VEHICLE_3D_DEPTH - 6);
+        ctx.restore();
+      });
+    }
+  };
+
+  function renderDashVehicleChart(){
+    if(!ASSETS.length) return;
+    if(typeof Chart === 'undefined'){
+      document.getElementById('dashVehicleNote').textContent = 'Gagal memuat library chart (Chart.js). Cek koneksi internet lalu refresh halaman.';
+      return;
+    }
+    try{
+      const scoped = dashVehicleFilter === 'wajib'
+        ? ASSETS.filter(a => (a['Kewajiban']||'').trim().toLowerCase() === 'ya')
+        : ASSETS;
+
+      const counts = {};
+      scoped.forEach(a => {
+        const k = (a['Kelompok']||'').trim() || 'Tanpa Kelompok';
+        counts[k] = (counts[k]||0) + 1;
+      });
+      const entries = Object.entries(counts).sort((a,b)=> b[1]-a[1]);
+      const labels = entries.map(e=>e[0]);
+      const data = entries.map(e=>e[1]);
+      const palette = ['#E8A33D','#4C8DF5','#3FB6A8','#8FCB84','#E8825A','#F2B705','#E08A3E','#9AA1B4'];
+      const colors = labels.map((_,i)=> palette[i % palette.length]);
+
+      if(dashVehicleChart) dashVehicleChart.destroy();
+      dashVehicleChart = new Chart(document.getElementById('dashVehicleBarChart'), {
+        type: 'bar',
+        data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth:0, borderRadius:0, maxBarThickness:46, categoryPercentage:0.6, barPercentage:0.9 }] },
+        plugins: [dashVehicle3DPlugin, dashVehicleLabelsPlugin],
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: { padding: { top: 26, right: DASH_VEHICLE_3D_DEPTH + 4 } },
+          plugins: {
+            legend: { display:false },
+            tooltip: { titleFont:{family:'IBM Plex Mono'}, bodyFont:{family:'IBM Plex Mono'} },
+          },
+          scales: {
+            x: { ticks: { color:'#9BA3A0', font:{family:'IBM Plex Mono', size:10.5} }, grid: { display:false } },
+            y: { beginAtZero:true, ticks: { color:'#9BA3A0', font:{family:'IBM Plex Mono', size:10.5}, precision:0 }, grid: { color:'#333B3D' } },
+          },
+        },
+      });
+
+      const total = data.reduce((s,v)=>s+v,0);
+      document.getElementById('dashVehicleNote').textContent = dashVehicleFilter==='wajib'
+        ? `Total ${total} kendaraan wajib pajak (Kewajiban = Ya) dari ${ASSETS.length} unit.`
+        : `Total ${total} kendaraan dari seluruh kelompok (${ASSETS.length} unit terdata).`;
+    }catch(err){
+      console.error('renderDashVehicleChart error:', err);
+      document.getElementById('dashVehicleNote').textContent = 'Terjadi error saat menggambar chart: ' + (err && err.message ? err.message : err);
+    }
+  }
+
+  document.querySelectorAll('#dashVehicleFilterToggle button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(btn.dataset.filter === dashVehicleFilter) return;
+      dashVehicleFilter = btn.dataset.filter;
+      document.querySelectorAll('#dashVehicleFilterToggle button').forEach(b=>b.classList.toggle('active', b===btn));
+      renderDashVehicleChart();
+    });
+  });
+
   document.querySelectorAll('#dashTrendTypeToggle button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       if(btn.dataset.type === dashTrendChartType) return;
@@ -1992,6 +2153,12 @@
       } else {
         dashPopulateFilters();
         renderDashboardCharts();
+      }
+      if(!kendaraanLoaded){
+        kendaraanLoaded = true;
+        loadData();
+      } else {
+        renderDashVehicleChart();
       }
     }
     if(page==='kendaraan' && !kendaraanLoaded){
