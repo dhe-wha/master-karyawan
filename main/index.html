@@ -202,6 +202,9 @@
   .chart-box{position:relative; height:300px;}
   .chart-box.tall{height:340px;}
   .chart-legend-note{font-family:var(--font-mono); font-size:10.5px; color:var(--text-dim); text-align:center; margin:10px 0 0;}
+  .dash-section-title{grid-column:1/-1; display:flex; align-items:center; gap:10px; margin:4px 0 -2px;}
+  .dash-section-title::before{content:''; width:4px; height:18px; border-radius:2px; background:var(--accent-color, var(--purple));}
+  .dash-section-title span{font-family:var(--font-display); text-transform:uppercase; font-size:13px; font-weight:700; letter-spacing:1.5px; color:var(--text);}
 
   .bar-row{display:flex; align-items:center; gap:12px; margin-bottom:12px;}
   .bar-row:last-child{margin-bottom:0;}
@@ -584,6 +587,7 @@
       </div>
 
       <div class="kry-grid" id="dashGrid">
+        <div class="dash-section-title" style="--accent-color:var(--purple);"><span>Human Resources</span></div>
         <div class="kry-card wide">
           <div class="card-head-row">
             <h3>Jumlah Karyawan per PT per Bulan</h3>
@@ -609,6 +613,7 @@
           <div class="chart-box"><canvas id="dashDoughnutChart"></canvas></div>
           <p class="chart-legend-note" id="dashDoughnutNote"></p>
         </div>
+        <div class="dash-section-title" style="--accent-color:var(--orange);"><span>General Affair</span></div>
         <div class="kry-card wide">
           <div class="card-head-row">
             <h3>Total Kendaraan per Kelompok</h3>
