@@ -1327,43 +1327,25 @@
     return DASH_PT_COLORS[pt] || DASH_PT_FALLBACK_COLORS[idx % DASH_PT_FALLBACK_COLORS.length];
   }
 
-  /* Plugin ringan buatan sendiri untuk menampilkan nilai data langsung di chart
-     (di atas titik/bar, atau di tengah slice pie/doughnut) - supaya tidak perlu
-     tambah dependency CDN baru (chartjs-plugin-datalabels). Konfigurasi per-chart
-     lewat options.plugins.dashDataLabels = { mode:'point'|'arc', formatter } */
+  /* Plugin ringan buatan sendiri untuk menampilkan nilai data langsung di atas
+     titik/bar - supaya tidak perlu tambah dependency CDN baru (chartjs-plugin-datalabels). */
   const dashDataLabelsPlugin = {
     id: 'dashDataLabels',
     afterDatasetsDraw(chart){
       const { ctx } = chart;
-      const opts = (chart.options.plugins && chart.options.plugins.dashDataLabels) || {};
-      if(opts.enabled === false) return;
-      const formatter = opts.formatter || (v=>v);
-      const mode = opts.mode || 'point';
       chart.data.datasets.forEach((dataset, dsIndex) => {
         const meta = chart.getDatasetMeta(dsIndex);
         if(meta.hidden) return;
         meta.data.forEach((element, index) => {
-          const raw = dataset.data[index];
-          if(raw === null || raw === undefined || raw === 0) return;
-          const label = formatter(raw, { dataIndex: index, dataset, chart });
-          if(label === null || label === undefined || label === '') return;
-          const pos = element.tooltipPosition ? element.tooltipPosition() : element.getCenterPoint();
+          const value = dataset.data[index];
+          if(value === null || value === undefined || value === 0) return;
           ctx.save();
+          ctx.fillStyle = dataset.borderColor || dataset.backgroundColor || '#ECEAE4';
+          ctx.font = "10px 'IBM Plex Mono', monospace";
           ctx.textAlign = 'center';
-          if(mode === 'arc'){
-            ctx.font = "bold 11px 'IBM Plex Mono', monospace";
-            ctx.textBaseline = 'middle';
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = 'rgba(20,24,26,0.85)';
-            ctx.fillStyle = '#ECEAE4';
-            ctx.strokeText(label, pos.x, pos.y);
-            ctx.fillText(label, pos.x, pos.y);
-          } else {
-            ctx.font = "10px 'IBM Plex Mono', monospace";
-            ctx.textBaseline = 'bottom';
-            ctx.fillStyle = dataset.borderColor || dataset.backgroundColor || '#ECEAE4';
-            ctx.fillText(label, pos.x, pos.y - 6);
-          }
+          ctx.textBaseline = 'bottom';
+          const pos = element.tooltipPosition ? element.tooltipPosition() : element.getCenterPoint();
+          ctx.fillText(value, pos.x, pos.y - 6);
           ctx.restore();
         });
       });
@@ -1525,16 +1507,13 @@
       'Non Sulawesi': sum('klasNonSulawesi'),
     };
     if(dashDoughnutChart) dashDoughnutChart.destroy();
-    const doughnutOptions = dashPieOptions();
-    doughnutOptions.plugins.dashDataLabels = { mode: 'arc', formatter: v => v };
     dashDoughnutChart = new Chart(document.getElementById('dashDoughnutChart'), {
       type: 'doughnut',
       data: {
         labels: Object.keys(klas),
         datasets: [{ data: Object.values(klas), backgroundColor: ['#E8A33D','#4C8DF5','#8FCB84','#E8825A','#3FB6A8','#F2B705'], borderColor:'#1E2426', borderWidth:2 }],
       },
-      plugins: [dashDataLabelsPlugin],
-      options: doughnutOptions,
+      options: dashPieOptions(),
     });
     const klasTotal = Object.values(klas).reduce((a,b)=>a+b,0);
     document.getElementById('dashDoughnutNote').textContent = klasTotal ? `Total ${klasTotal} karyawan` : 'Tidak ada data.';
