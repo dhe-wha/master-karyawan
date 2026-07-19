@@ -1145,9 +1145,26 @@
     bldGroupFilterValue = sel.value;
   }
 
+  /* Filter Jenis & Lokasi berjenjang (cascading): pilihan Jenis mengikuti
+     Kategori yang sedang dipilih, dan pilihan Lokasi mengikuti Kategori +
+     Jenis yang sedang dipilih - supaya tidak muncul kombinasi yang sebenarnya
+     tidak ada datanya di sheet. */
+  function bldScopedByKategori(){
+    return bldGroupFilterValue==='semua'
+      ? BUILDINGS
+      : BUILDINGS.filter(a => (a['Kategori']||'').trim()===bldGroupFilterValue);
+  }
+
+  function bldScopedByKategoriJenis(){
+    const scoped = bldScopedByKategori();
+    return bldJenisFilterValue==='semua'
+      ? scoped
+      : scoped.filter(a => (a['Jenis']||'').trim()===bldJenisFilterValue);
+  }
+
   function populateBldJenisFilter(){
     const sel = document.getElementById('bldJenisFilter');
-    const jenisList = Array.from(new Set(BUILDINGS.map(a => (a['Jenis']||'').trim()).filter(Boolean))).sort();
+    const jenisList = Array.from(new Set(bldScopedByKategori().map(a => (a['Jenis']||'').trim()).filter(Boolean))).sort();
     const current = sel.value || 'semua';
     sel.innerHTML = `<option value="semua">Semua Jenis</option>` + jenisList.map(g => `<option value="${g}">${g}</option>`).join('');
     sel.value = jenisList.includes(current) ? current : 'semua';
@@ -1156,7 +1173,7 @@
 
   function populateBldLokasiFilter(){
     const sel = document.getElementById('bldLokasiFilter');
-    const lokasiList = Array.from(new Set(BUILDINGS.map(a => (a['Lokasi']||'').trim()).filter(Boolean))).sort();
+    const lokasiList = Array.from(new Set(bldScopedByKategoriJenis().map(a => (a['Lokasi']||'').trim()).filter(Boolean))).sort();
     const current = sel.value || 'semua';
     sel.innerHTML = `<option value="semua">Semua Lokasi</option>` + lokasiList.map(g => `<option value="${g}">${g}</option>`).join('');
     sel.value = lokasiList.includes(current) ? current : 'semua';
@@ -1313,10 +1330,13 @@
 
   document.getElementById('bldGroupFilter').addEventListener('change', e=>{
     bldGroupFilterValue = e.target.value;
+    populateBldJenisFilter();
+    populateBldLokasiFilter();
     renderBldGrid();
   });
   document.getElementById('bldJenisFilter').addEventListener('change', e=>{
     bldJenisFilterValue = e.target.value;
+    populateBldLokasiFilter();
     renderBldGrid();
   });
   document.getElementById('bldLokasiFilter').addEventListener('change', e=>{
