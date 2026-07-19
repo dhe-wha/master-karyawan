@@ -444,6 +444,16 @@
               <option value="semua">Semua Kategori</option>
             </select>
           </div>
+          <div class="group-select">
+            <select id="bldJenisFilter">
+              <option value="semua">Semua Jenis</option>
+            </select>
+          </div>
+          <div class="group-select">
+            <select id="bldLokasiFilter">
+              <option value="semua">Semua Lokasi</option>
+            </select>
+          </div>
           <div class="search">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <input type="text" id="bldSearchInput" placeholder="Cari kode bangunan, nama, jenis, atau lokasi...">
@@ -1092,6 +1102,8 @@
 
   let BUILDINGS = [];
   let bldGroupFilterValue = 'semua';
+  let bldJenisFilterValue = 'semua';
+  let bldLokasiFilterValue = 'semua';
   let bldSearchTerm = '';
   let bldViewMode = localStorage.getItem('bangunanViewMode') || 'card';
   let bldLoaded = false;
@@ -1110,6 +1122,8 @@
         btn.classList.remove('spinning');
         BUILDINGS = (results.data||[]).filter(r => r['Kode Bangunan'] && r['Kode Bangunan'].trim()!=='');
         populateBldGroupFilter();
+        populateBldJenisFilter();
+        populateBldLokasiFilter();
         renderBldGrid();
         if(typeof renderDashBuildingChart === 'function') renderDashBuildingChart();
       },
@@ -1131,6 +1145,24 @@
     bldGroupFilterValue = sel.value;
   }
 
+  function populateBldJenisFilter(){
+    const sel = document.getElementById('bldJenisFilter');
+    const jenisList = Array.from(new Set(BUILDINGS.map(a => (a['Jenis']||'').trim()).filter(Boolean))).sort();
+    const current = sel.value || 'semua';
+    sel.innerHTML = `<option value="semua">Semua Jenis</option>` + jenisList.map(g => `<option value="${g}">${g}</option>`).join('');
+    sel.value = jenisList.includes(current) ? current : 'semua';
+    bldJenisFilterValue = sel.value;
+  }
+
+  function populateBldLokasiFilter(){
+    const sel = document.getElementById('bldLokasiFilter');
+    const lokasiList = Array.from(new Set(BUILDINGS.map(a => (a['Lokasi']||'').trim()).filter(Boolean))).sort();
+    const current = sel.value || 'semua';
+    sel.innerHTML = `<option value="semua">Semua Lokasi</option>` + lokasiList.map(g => `<option value="${g}">${g}</option>`).join('');
+    sel.value = lokasiList.includes(current) ? current : 'semua';
+    bldLokasiFilterValue = sel.value;
+  }
+
   function renderBldGrid(){
     const grid = document.getElementById('bldGrid');
     const tableWrap = document.getElementById('bldTableWrap');
@@ -1138,6 +1170,8 @@
 
     const filtered = BUILDINGS.filter(a=>{
       if(bldGroupFilterValue!=='semua' && (a['Kategori']||'').trim()!==bldGroupFilterValue) return false;
+      if(bldJenisFilterValue!=='semua' && (a['Jenis']||'').trim()!==bldJenisFilterValue) return false;
+      if(bldLokasiFilterValue!=='semua' && (a['Lokasi']||'').trim()!==bldLokasiFilterValue) return false;
       if(!term) return true;
       const hay = [a['Kode Bangunan'], a['Nama Bangunan'], a['Jenis'], a['Lokasi'], a['PT']].join(' ').toLowerCase();
       return hay.includes(term);
@@ -1145,7 +1179,12 @@
 
     filtered.sort((a,b)=> (a['Nama Bangunan']||'').localeCompare(b['Nama Bangunan']||'', undefined, {numeric:true, sensitivity:'base'}));
 
-    const groupScoped = bldGroupFilterValue==='semua' ? BUILDINGS : BUILDINGS.filter(a => (a['Kategori']||'').trim()===bldGroupFilterValue);
+    const groupScoped = BUILDINGS.filter(a=>{
+      if(bldGroupFilterValue!=='semua' && (a['Kategori']||'').trim()!==bldGroupFilterValue) return false;
+      if(bldJenisFilterValue!=='semua' && (a['Jenis']||'').trim()!==bldJenisFilterValue) return false;
+      if(bldLokasiFilterValue!=='semua' && (a['Lokasi']||'').trim()!==bldLokasiFilterValue) return false;
+      return true;
+    });
     document.getElementById('bldStatTotal').textContent = groupScoped.length;
     document.getElementById('bldStatPermanen').textContent = groupScoped.filter(a => (a['Tipe']||'').trim().toLowerCase()==='permanen').length;
     document.getElementById('bldStatNonPermanen').textContent = groupScoped.filter(a => (a['Tipe']||'').trim().toLowerCase()==='non permanen').length;
@@ -1274,6 +1313,14 @@
 
   document.getElementById('bldGroupFilter').addEventListener('change', e=>{
     bldGroupFilterValue = e.target.value;
+    renderBldGrid();
+  });
+  document.getElementById('bldJenisFilter').addEventListener('change', e=>{
+    bldJenisFilterValue = e.target.value;
+    renderBldGrid();
+  });
+  document.getElementById('bldLokasiFilter').addEventListener('change', e=>{
+    bldLokasiFilterValue = e.target.value;
     renderBldGrid();
   });
   document.getElementById('bldSearchInput').addEventListener('input', e=>{
