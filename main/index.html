@@ -675,6 +675,11 @@
             <select id="dashTahunFilter"></select>
           </div>
           <div class="group-select">
+            <select id="dashBulanFilter">
+              <option value="semua">Semua Bulan</option>
+            </select>
+          </div>
+          <div class="group-select">
             <select id="dashPtFilter">
               <option value="semua">Semua PT</option>
             </select>
@@ -1754,6 +1759,7 @@
      Dashboard Karyawan di atas (KRY_ROWS, sheet Summary).
      ===================================================================== */
   let dashTahunValue = null;
+  let dashBulanValue = 'semua';
   let dashPtValue = 'semua';
   let dashTrendChartType = 'line';
   let dashLineChart = null, dashPieKabChart = null, dashPieProvChart = null, dashDoughnutChart = null;
@@ -1840,6 +1846,24 @@
     ptSel.innerHTML = `<option value="semua">Semua PT</option>` + pts.map(p=>`<option value="${p}">${p}</option>`).join('');
     ptSel.value = (curPt==='semua' || pts.includes(curPt)) ? curPt : 'semua';
     dashPtValue = ptSel.value;
+
+    dashPopulateBulanFilter();
+  }
+
+  /* Isi dropdown Bulan mengikuti Tahun yang sedang dipilih, urut kronologis.
+     Filter ini hanya berlaku utk snapshot pie/doughnut di section Human Resources. */
+  function dashPopulateBulanFilter(){
+    const bulanSel = document.getElementById('dashBulanFilter');
+    const bulanOptions = Array.from(
+      new Map(
+        KRY_ROWS.filter(r=>r.tahun===dashTahunValue).map(r=>[r.bulan, r.sortKey])
+      ).entries()
+    ).sort((a,b)=>a[1]-b[1]).map(([bulan])=>bulan);
+
+    const curBulan = dashBulanValue || 'semua';
+    bulanSel.innerHTML = `<option value="semua">Semua Bulan</option>` + bulanOptions.map(b=>`<option value="${b}">${b}</option>`).join('');
+    bulanSel.value = (curBulan==='semua' || bulanOptions.includes(curBulan)) ? curBulan : 'semua';
+    dashBulanValue = bulanSel.value;
   }
 
   function dashPieOptions(){
@@ -1925,18 +1949,25 @@
       },
     });
 
-    /* ---------- Snapshot bulan terakhir dalam cakupan filter (untuk pie/doughnut) ---------- */
+    /* ---------- Snapshot bulan (untuk pie/doughnut, khusus section Human Resources) ----------
+       Jika dashBulanValue==='semua', ambil bulan terakhir yang tersedia dalam cakupan filter.
+       Jika bulan tertentu dipilih, pakai bulan itu sebagai snapshot. */
     const scopedRows = dashPtValue==='semua' ? yearRows : yearRows.filter(r=>r.pt===dashPtValue);
-    let snapshotBulan = null, snapshotSortKey = -1;
-    scopedRows.forEach(r=>{
-      if(r.sortKey > snapshotSortKey){ snapshotSortKey = r.sortKey; snapshotBulan = r.bulan; }
-    });
+    let snapshotBulan = null;
+    if(dashBulanValue==='semua'){
+      let snapshotSortKey = -1;
+      scopedRows.forEach(r=>{
+        if(r.sortKey > snapshotSortKey){ snapshotSortKey = r.sortKey; snapshotBulan = r.bulan; }
+      });
+    } else {
+      snapshotBulan = scopedRows.some(r=>r.bulan===dashBulanValue) ? dashBulanValue : null;
+    }
     const snapshotRows = scopedRows.filter(r=>r.bulan===snapshotBulan);
     const sum = (field) => snapshotRows.reduce((s,r)=>s+r[field],0);
 
     document.getElementById('dashNote').innerHTML = snapshotBulan
       ? `Tren tahun <b>${dashTahunValue}</b>. Snapshot pie/doughnut per <b>${snapshotBulan}</b>.`
-      : `Tidak ada data untuk tahun ${dashTahunValue}.`;
+      : `Tidak ada data karyawan untuk bulan yang dipilih.`;
 
     /* ---------- Pie: Lokal/Non-Lokal by Kabupaten ---------- */
     const kabLokal = sum('kabLokal'), kabNonLokal = sum('kabNonLokal');
@@ -2224,6 +2255,12 @@
 
   document.getElementById('dashTahunFilter').addEventListener('change', e=>{
     dashTahunValue = parseInt(e.target.value,10);
+    dashBulanValue = 'semua'; // daftar bulan berbeda per tahun, reset ke "Semua Bulan"
+    dashPopulateBulanFilter();
+    renderDashboardCharts();
+  });
+  document.getElementById('dashBulanFilter').addEventListener('change', e=>{
+    dashBulanValue = e.target.value;
     renderDashboardCharts();
   });
   document.getElementById('dashPtFilter').addEventListener('change', e=>{
