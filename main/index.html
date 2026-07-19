@@ -680,11 +680,6 @@
         </div>
         <div class="dash-section-title" style="--accent-color:var(--orange);"><span>General Affair</span></div>
         <div class="kry-card wide">
-          <h3>Total Kendaraan per Jenis Kendaraan</h3>
-          <div class="chart-box tall"><canvas id="dashVehicleJenisChart"></canvas></div>
-          <p class="chart-legend-note" id="dashVehicleJenisNote"></p>
-        </div>
-        <div class="kry-card wide">
           <div class="card-head-row">
             <h3>Total Kendaraan per Kategori</h3>
             <div class="chart-type-toggle" id="dashVehicleFilterToggle">
@@ -696,8 +691,13 @@
           <p class="chart-legend-note" id="dashVehicleNote"></p>
         </div>
         <div class="kry-card wide">
-          <h3>Total Bangunan per Kategori &amp; Jenis</h3>
-          <div class="chart-box tall"><canvas id="dashBuildingChart"></canvas></div>
+          <h3>Total Kendaraan per Jenis Kendaraan</h3>
+          <div class="bar-list" id="dashVehicleJenisList"></div>
+          <p class="chart-legend-note" id="dashVehicleJenisNote"></p>
+        </div>
+        <div class="kry-card wide">
+          <h3>Total Bangunan per Kategori</h3>
+          <div class="bar-list" id="dashBuildingList"></div>
           <p class="chart-legend-note" id="dashBuildingNote"></p>
         </div>
       </div>
@@ -2025,146 +2025,49 @@
       dashVehicleFilter = btn.dataset.filter;
       document.querySelectorAll('#dashVehicleFilterToggle button').forEach(b=>b.classList.toggle('active', b===btn));
       renderDashVehicleChart();
+      renderDashVehicleJenisChart();
     });
   });
 
   /* Total Kendaraan per Jenis Kendaraan (sheet Kendaraan, kolom K "Jenis") -
-     pakai ulang plugin 3D + label yang sama dengan chart per Kategori di atas,
-     cuma field pengelompokannya beda, jadi tidak perlu plugin baru. */
-  let dashVehicleJenisChart = null;
-
+     tampil sebagai bar-list horizontal (sama seperti "Karyawan per Departemen"
+     di section Human Resources), bukan chart Chart.js. Ikut filter
+     Semua/Wajib Pajak yang sama dengan chart "Total Kendaraan per Kategori"
+     di atasnya (variabel dashVehicleFilter dipakai bersama). */
   function renderDashVehicleJenisChart(){
     if(!ASSETS.length) return;
-    if(typeof Chart === 'undefined'){
-      document.getElementById('dashVehicleJenisNote').textContent = 'Gagal memuat library chart (Chart.js). Cek koneksi internet lalu refresh halaman.';
-      return;
-    }
-    try{
-      const counts = {};
-      ASSETS.forEach(a => {
-        const k = (a['Jenis']||'').trim() || 'Tanpa Jenis';
-        counts[k] = (counts[k]||0) + 1;
-      });
-      const entries = Object.entries(counts).sort((a,b)=> b[1]-a[1]);
-      const labels = entries.map(e=>e[0]);
-      const data = entries.map(e=>e[1]);
-      const palette = ['#4C8DF5','#E8A33D','#3FB6A8','#8FCB84','#E8825A','#F2B705','#E08A3E','#9AA1B4'];
-      const colors = labels.map((_,i)=> palette[i % palette.length]);
+    const scoped = dashVehicleFilter === 'wajib'
+      ? ASSETS.filter(a => (a['Kewajiban']||'').trim().toLowerCase() === 'ya')
+      : ASSETS;
 
-      if(dashVehicleJenisChart) dashVehicleJenisChart.destroy();
-      dashVehicleJenisChart = new Chart(document.getElementById('dashVehicleJenisChart'), {
-        type: 'bar',
-        data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth:0, borderRadius:0, maxBarThickness:46, categoryPercentage:0.6, barPercentage:0.9 }] },
-        plugins: [dashVehicle3DPlugin, dashVehicleLabelsPlugin],
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          layout: { padding: { top: 26, right: DASH_VEHICLE_3D_DEPTH + 4 } },
-          plugins: {
-            legend: { display:false },
-            tooltip: { titleFont:{family:'IBM Plex Mono'}, bodyFont:{family:'IBM Plex Mono'} },
-          },
-          scales: {
-            x: { ticks: { color:'#9BA3A0', font:{family:'IBM Plex Mono', size:10.5} }, grid: { display:false } },
-            y: { beginAtZero:true, ticks: { color:'#9BA3A0', font:{family:'IBM Plex Mono', size:10.5}, precision:0 }, grid: { color:'#333B3D' } },
-          },
-        },
-      });
+    const counts = {};
+    scoped.forEach(a => {
+      const k = (a['Jenis']||'').trim() || 'Tanpa Jenis';
+      counts[k] = (counts[k]||0) + 1;
+    });
+    const entries = Object.entries(counts).map(([k,v])=>({label:k, value:v})).sort((a,b)=>b.value-a.value);
+    renderBarList('dashVehicleJenisList', entries);
 
-      const total = data.reduce((s,v)=>s+v,0);
-      document.getElementById('dashVehicleJenisNote').textContent = `Total ${total} kendaraan dari ${labels.length} jenis berbeda.`;
-    }catch(err){
-      console.error('renderDashVehicleJenisChart error:', err);
-      document.getElementById('dashVehicleJenisNote').textContent = 'Terjadi error saat menggambar chart: ' + (err && err.message ? err.message : err);
-    }
+    const total = entries.reduce((s,e)=>s+e.value,0);
+    document.getElementById('dashVehicleJenisNote').textContent = dashVehicleFilter==='wajib'
+      ? `Total ${total} kendaraan wajib pajak dari ${entries.length} jenis berbeda.`
+      : `Total ${total} kendaraan dari ${entries.length} jenis berbeda.`;
   }
 
-  /* =====================================================================
-     Total Bangunan per Kategori & Jenis (bar stacked) - sumber data sheet
-     "Bangunan" (variabel BUILDINGS, sudah dipakai halaman General Affair >
-     Bangunan). Plugin di bawah berdiri sendiri (tidak berbagi kode dengan
-     plugin kendaraan) supaya aman kalau salah satu perlu diubah lagi nanti.
-     ===================================================================== */
-  let dashBuildingChart = null;
-
-  const dashBuildingStackTotalPlugin = {
-    id: 'dashBuildingStackTotal',
-    afterDatasetsDraw(chart){
-      const { ctx } = chart;
-      const labels = chart.data.labels;
-      labels.forEach((label, catIndex) => {
-        let total = 0;
-        let topY = null;
-        let x = null;
-        chart.data.datasets.forEach((dataset, dsIndex) => {
-          const meta = chart.getDatasetMeta(dsIndex);
-          if(meta.hidden) return;
-          const v = dataset.data[catIndex] || 0;
-          if(v > 0){
-            total += v;
-            const el = meta.data[catIndex];
-            if(el){
-              x = el.x;
-              if(topY === null || el.y < topY) topY = el.y;
-            }
-          }
-        });
-        if(total > 0 && topY !== null){
-          ctx.save();
-          ctx.font = "bold 12px 'IBM Plex Mono', monospace";
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'bottom';
-          ctx.fillStyle = '#ECEAE4';
-          ctx.fillText(String(total), x, topY - 6);
-          ctx.restore();
-        }
-      });
-    }
-  };
-
+  /* Total Bangunan per Kategori (sheet "Bangunan", variabel BUILDINGS - sudah
+     dipakai halaman General Affair > Bangunan) - juga bar-list horizontal,
+     gaya sama seperti "Karyawan per Departemen". */
   function renderDashBuildingChart(){
     if(!BUILDINGS.length) return;
-    if(typeof Chart === 'undefined'){
-      document.getElementById('dashBuildingNote').textContent = 'Gagal memuat library chart (Chart.js). Cek koneksi internet lalu refresh halaman.';
-      return;
-    }
-    try{
-      const categories = Array.from(new Set(BUILDINGS.map(a=>(a['Kategori']||'').trim()).filter(Boolean)));
-      const jenisList = Array.from(new Set(BUILDINGS.map(a=>(a['Jenis']||'').trim()).filter(Boolean)));
-      const palette = ['#E8A33D','#4C8DF5','#3FB6A8','#8FCB84','#E8825A','#F2B705','#E08A3E','#9AA1B4','#C97BDB','#5FA8D3','#D3915F','#7DBF7D','#E06B8B','#9B8AE6','#6FC2C2','#D6B14A'];
+    const counts = {};
+    BUILDINGS.forEach(a => {
+      const k = (a['Kategori']||'').trim() || 'Tanpa Kategori';
+      counts[k] = (counts[k]||0) + 1;
+    });
+    const entries = Object.entries(counts).map(([k,v])=>({label:k, value:v})).sort((a,b)=>b.value-a.value);
+    renderBarList('dashBuildingList', entries);
 
-      const datasets = jenisList.map((jenis, idx) => {
-        const data = categories.map(kat =>
-          BUILDINGS.filter(a => (a['Kategori']||'').trim()===kat && (a['Jenis']||'').trim()===jenis).length
-        );
-        return { label: jenis, data, backgroundColor: palette[idx % palette.length], borderWidth:0, maxBarThickness:90 };
-      });
-
-      if(dashBuildingChart) dashBuildingChart.destroy();
-      dashBuildingChart = new Chart(document.getElementById('dashBuildingChart'), {
-        type: 'bar',
-        data: { labels: categories, datasets },
-        plugins: [dashBuildingStackTotalPlugin],
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          layout: { padding: { top: 26 } },
-          plugins: {
-            legend: { position:'bottom', labels: { color:'#9BA3A0', font:{family:'IBM Plex Mono', size:9.5}, boxWidth:10, padding:6 } },
-            tooltip: { titleFont:{family:'IBM Plex Mono'}, bodyFont:{family:'IBM Plex Mono'} },
-          },
-          scales: {
-            x: { stacked:true, ticks: { color:'#9BA3A0', font:{family:'IBM Plex Mono', size:10.5} }, grid: { display:false } },
-            y: { stacked:true, beginAtZero:true, ticks: { color:'#9BA3A0', font:{family:'IBM Plex Mono', size:10.5}, precision:0 }, grid: { color:'#333B3D' } },
-          },
-        },
-      });
-
-      document.getElementById('dashBuildingNote').textContent = `Total ${BUILDINGS.length} bangunan · ${categories.length} kategori · ${jenisList.length} jenis berbeda.`;
-    }catch(err){
-      console.error('renderDashBuildingChart error:', err);
-      document.getElementById('dashBuildingNote').textContent = 'Terjadi error saat menggambar chart: ' + (err && err.message ? err.message : err);
-    }
+    document.getElementById('dashBuildingNote').textContent = `Total ${BUILDINGS.length} bangunan dari ${entries.length} kategori.`;
   }
 
   document.querySelectorAll('#dashTrendTypeToggle button').forEach(btn=>{
