@@ -214,6 +214,8 @@
   .bar-fill.green{background:var(--green);}
   .bar-fill.red{background:var(--red);}
   .bar-value{width:54px; text-align:right; font-weight:700; flex-shrink:0; font-size:13px;}
+  .bar-value.wide{width:96px;}
+  .bar-value .bar-pct{font-weight:500; font-size:10px; color:var(--text-dim); margin-left:3px;}
   .bar-group{margin-bottom:20px;}
   .bar-group:last-child{margin-bottom:0;}
   .bar-row.main .label{color:var(--text); font-weight:600; letter-spacing:.5px;}
@@ -1563,6 +1565,18 @@
       </div>`).join('');
   }
 
+  function renderBarListPct(containerId, entries, colorClass){
+    const el = document.getElementById(containerId);
+    if(!el) return;
+    const max = Math.max(...entries.map(e=>e.value), 1);
+    el.innerHTML = entries.map(e => `
+      <div class="bar-row">
+        <div class="label">${e.label}</div>
+        <div class="bar-track"><div class="bar-fill ${colorClass||''}" style="width:${(e.value/max*100).toFixed(1)}%"></div></div>
+        <div class="bar-value wide">${e.value.toLocaleString('id-ID')}<span class="bar-pct">(${e.pct.toFixed(1)}%)</span></div>
+      </div>`).join('');
+  }
+
   function renderGajiTable(containerId, deptEntries, total){
     const el = document.getElementById(containerId);
     if(!el) return;
@@ -1620,6 +1634,8 @@
     const masukTotal = sum(flowRows,'masukPenambahan')+sum(flowRows,'masukPenggantian')+sum(flowRows,'masukMutasi')+sum(flowRows,'masukPromosi');
     const keluarTotal = sum(flowRows,'keluarResign')+sum(flowRows,'keluarMutasi')+sum(flowRows,'keluarPromosi')+sum(flowRows,'keluarHabisKontrak')+sum(flowRows,'keluarMeninggal');
 
+    const resignByPT = groupSum(flowRows, 'pt', 'keluarResign');
+
     const genderL = sum(snapshotRows,'genderL'), genderP = sum(snapshotRows,'genderP');
     const statusBulanan = sum(snapshotRows,'statusBulanan'), statusSKU = sum(snapshotRows,'statusSKU'), statusPKWT = sum(snapshotRows,'statusPKWT'), statusBHL = sum(snapshotRows,'statusBHL');
     const pangkatStaff = sum(snapshotRows,'pangkatStaff'), pangkatMandor1 = sum(snapshotRows,'pangkatMandor1'), pangkatMandorKerani = sum(snapshotRows,'pangkatMandorKerani'), pangkatWorker = sum(snapshotRows,'pangkatWorker');
@@ -1641,6 +1657,7 @@
 
     grid.innerHTML = `
       <div class="kry-card"><h3>Karyawan per PT</h3><div class="bar-list" id="kryByPT"></div></div>
+      <div class="kry-card"><h3>Karyawan Resign per PT</h3><div class="bar-list" id="kryResignPT"></div></div>
       <div class="kry-card wide"><h3>Karyawan per Departemen</h3><div class="bar-list" id="kryByDept"></div></div>
       <div class="kry-card"><h3>Lokal / Non-Lokal &middot; by Kabupaten</h3><div class="bar-list" id="kryKab"></div></div>
       <div class="kry-card"><h3>Lokal / Non-Lokal &middot; by Provinsi</h3><div class="bar-list" id="kryProv"></div></div>
@@ -1655,6 +1672,12 @@
     `;
 
     renderBarList('kryByPT', Object.entries(byPT).map(([k,v])=>({label:k,value:v})));
+    const resignPtKeys = Array.from(new Set([...Object.keys(byPT), ...Object.keys(resignByPT)]));
+    renderBarListPct('kryResignPT', resignPtKeys.map(k => {
+      const resign = resignByPT[k] || 0;
+      const headcount = byPT[k] || 0;
+      return {label:k, value:resign, pct: headcount ? (resign/headcount*100) : 0};
+    }).sort((a,b)=>b.value-a.value), 'red');
     renderBarList('kryByDept', Object.entries(byDept).map(([k,v])=>({label:k,value:v})).sort((a,b)=>b.value-a.value));
     renderBarList('kryKab', [{label:'Lokal',value:kabLokal},{label:'Non Lokal',value:kabNonLokal}]);
     renderBarList('kryProv', [{label:'Lokal',value:provLokal},{label:'Non Lokal',value:provNonLokal}]);
