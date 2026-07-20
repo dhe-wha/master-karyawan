@@ -38,7 +38,8 @@
   .toolbar button{background:#fff; border:1px solid #bbb; border-radius:5px; padding:5px 14px; cursor:pointer; font-size:12.5px;}
   .toolbar button:hover{background:#f0f0f0;}
 
-  .viewport{overflow:auto; background:#fff; border:1px solid #ddd; padding:30px 24px; min-height:200px;}
+  .viewport{overflow:auto; background:#fff; border:1px solid #ddd; padding:30px 24px; min-height:200px; cursor:grab; user-select:none;}
+  .viewport.panning{cursor:grabbing;}
   .chart{transform-origin:top left; position:relative; margin:0 auto;}
   .chart svg{position:absolute; top:0; left:0; pointer-events:none;}
   .msg{text-align:center; color:#888; font-size:14px; padding:40px 0;}
@@ -348,6 +349,23 @@ function render(){
 let scale=1;
 function zoom(d){ scale=Math.min(2,Math.max(.25,scale+d)); chart.style.transform=`scale(${scale})`; }
 function zoomReset(){ scale=1; chart.style.transform=''; }
+
+/* ================== mode hand: geser dengan drag ================== */
+const vp=document.querySelector('.viewport');
+let panning=false, px=0, py=0, sx=0, sy=0;
+vp.addEventListener('pointerdown', e=>{
+  if(e.pointerType!=='mouse' || e.button!==0) return; // sentuh layar sudah bisa geser native
+  panning=true; px=e.clientX; py=e.clientY; sx=vp.scrollLeft; sy=vp.scrollTop;
+  vp.classList.add('panning'); vp.setPointerCapture(e.pointerId);
+});
+vp.addEventListener('pointermove', e=>{
+  if(!panning) return;
+  vp.scrollLeft=sx-(e.clientX-px);
+  vp.scrollTop=sy-(e.clientY-py);
+});
+['pointerup','pointercancel'].forEach(ev=>vp.addEventListener(ev, ()=>{
+  panning=false; vp.classList.remove('panning');
+}));
 
 loadData();
 </script>
