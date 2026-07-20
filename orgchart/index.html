@@ -233,7 +233,7 @@ function flat(n){ const o=[]; n.children.forEach(c=>{o.push(c); o.push(...flat(c
 function V(x,y1,y2){ if(y2>y1) lines.push(`M${x} ${y1} L${x} ${y2}`); }
 function Hln(y,x1,x2){ if(x2>x1) lines.push(`M${x1} ${y} L${x2} ${y}`); }
 
-// kolom: kepala (lv>=3) + semua turunannya ditumpuk vertikal sesuai pita level
+// kolom: kepala (Mandor1/Krani1) + turunannya ditumpuk vertikal sesuai pita level
 function placeColumn(n){
   const cx=curX, c=cx+CW/2;
   pos[n.k]={x:cx, y:BY(n.lv)};
@@ -249,19 +249,48 @@ function placeColumn(n){
   curX+=PW;
   return c;
 }
-// node horizontal (lv<3): anak-anaknya bisa node horizontal lagi atau kolom
+// tumpukan Mandor/Krani langsung (tanpa Mandor 1) dalam satu kolom
+function placeStack(list){
+  const cx=curX, c=cx+CW/2;
+  let bottom=-1;
+  list.forEach(d=>{
+    const y = bottom<0 ? BY(d.lv) : Math.max(BY(d.lv), bottom+GAP);
+    pos[d.k]={x:cx, y};
+    if(bottom>=0) V(c, bottom, y);
+    bottom=y+CH;
+  });
+  curX+=PW;
+  return c;
+}
+// node horizontal (lv<=3): Manager, Askep, Koordinator, Asisten
 function placeGroup(n){
   if(!n.children.length){
     pos[n.k]={x:curX, y:BY(n.lv)};
     const c=curX+CW/2; curX+=PW; return c;
   }
-  const centers=n.children.map(ch=> ch.lv<3 ? placeGroup(ch) : placeColumn(ch));
+  // partisi anak: horizontal (lv<4) / kolom Mandor1 (lv4) / tumpukan lv5 langsung
+  const items=[]; let stk=null;
+  n.children.forEach(ch=>{
+    if(ch.lv>=5){
+      if(!stk){ stk={type:'stack', list:[]}; items.push(stk); }
+      stk.list.push(ch, ...flat(ch));
+    }else{
+      items.push({type:'node', node:ch});
+    }
+  });
+  const centers=items.map(it=>{
+    if(it.type==='stack') return placeStack(it.list);
+    return it.node.lv<4 ? placeGroup(it.node) : placeColumn(it.node);
+  });
   const c=(Math.min(...centers)+Math.max(...centers))/2;
   pos[n.k]={x:c-CW/2, y:BY(n.lv)};
   const busY=BY(n.lv)+CH+22;
   V(c, BY(n.lv)+CH, busY);
   Hln(busY, Math.min(...centers,c), Math.max(...centers,c));
-  n.children.forEach((ch,i)=>V(centers[i], busY, pos[ch.k].y));
+  items.forEach((it,i)=>{
+    const head = it.type==='stack' ? it.list[0] : it.node;
+    V(centers[i], busY, pos[head.k].y);
+  });
   return c;
 }
 
