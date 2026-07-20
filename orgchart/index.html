@@ -284,11 +284,13 @@ function placeGroup(n){
     const c=curX+CW/2; curX+=PW; return c;
   }
   // partisi anak: horizontal (lv<4) / kolom Mandor1 (lv4) / tumpukan lv5 langsung
-  const items=[]; let stk=null;
+  // tumpukan lv5 dipisah per digit 8 (grup/shift Mandor 1) agar beda grup beda kolom
+  const items=[]; const stkMap={};
   n.children.forEach(ch=>{
     if(ch.lv>=5){
-      if(!stk){ stk={type:'stack', list:[]}; items.push(stk); }
-      stk.list.push(ch, ...flat(ch));
+      const key=ch.k.substr(7,1);
+      if(!stkMap[key]){ stkMap[key]={type:'stack', list:[]}; items.push(stkMap[key]); }
+      stkMap[key].list.push(ch, ...flat(ch));
     }else{
       items.push({type:'node', node:ch});
     }
