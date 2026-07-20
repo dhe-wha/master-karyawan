@@ -119,17 +119,17 @@
    Sheet harus di-share "Siapa saja yang memiliki link — Viewer".
    Data diambil langsung setiap halaman dibuka / tombol Muat Ulang. */
 const SHEET_ID = '1mHMrWu6yQ7p6gL_fQz_G6fa8ew2V2LcJ3WHZXwYZo7c';
-const CSV = sheet => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}`;
+const CSV = sheet => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&t=${Date.now()}`;
 
-/* ============ Ketentuan kode 9 digit ============
+/* ============ Ketentuan kode 10 digit ============
    Digit 1    : Perusahaan
    Digit 2-3  : Manager / Departemen
    Digit 4    : Asisten Kepala (Askep)
    Digit 5    : Koordinator
    Digit 6-7  : Asisten
    Digit 8    : Mandor 1 / Krani 1
-   Digit 9    : Mandor / Krani                                    */
-const GRUP = [[3,1],[4,1],[5,2],[7,1],[8,1]]; // [start,len] ASK,KRD,AST,MK1,MDK
+   Digit 9-10 : Mandor / Krani                                    */
+const GRUP = [[3,1],[4,1],[5,2],[7,1],[8,2]]; // [start,len] ASK,KRD,AST,MK1,MDK
 function parentKode(k){
   for(let i=GRUP.length-1;i>=0;i--){
     const [s,l]=GRUP[i];
@@ -139,7 +139,7 @@ function parentKode(k){
 }
 // Level: 0 Manager | 1 Askep | 2 Koordinator | 3 Asisten | 4 Mandor1/Krani1 | 5 Mandor/Krani
 function levelOf(k){
-  const ask=+k.substr(3,1), krd=+k.substr(4,1), ast=+k.substr(5,2), mk1=+k.substr(7,1), mdk=+k.substr(8,1);
+  const ask=+k.substr(3,1), krd=+k.substr(4,1), ast=+k.substr(5,2), mk1=+k.substr(7,1), mdk=+k.substr(8,2);
   if(ask===0 && krd===0 && ast===0 && mk1===0 && mdk===0) return 0;
   if(krd===0 && ast===0 && mk1===0 && mdk===0) return 1;
   if(ast===0 && mk1===0 && mdk===0) return 2;
@@ -195,7 +195,7 @@ async function loadData(){
     const order=[];
     sRows.slice(1).forEach(r=>{
       const k=(r[iK]||'').trim();
-      if(!/^\d{9}$/.test(k) || nodes[k]) return;
+      if(!/^\d{10}$/.test(k) || nodes[k]) return;
       nodes[k]={k, j:(r[iJ]||'').trim(), n:(r[iN]||'').trim(), lv:levelOf(k), children:[]};
       order.push(k);
     });
