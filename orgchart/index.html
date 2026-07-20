@@ -14,6 +14,7 @@
     --ast-bg:#c9a3d9;
     --m1-bg:#ffe94d;
     --mdr-bg:#bdd7ee;
+    --sub-bg:#e2efda;
     --line:#555;
     --jab:#1a1a2e;
     --nama:#14406b;
@@ -69,6 +70,7 @@
   .l3{background:var(--ast-bg);}
   .l4{background:var(--m1-bg);}
   .l5{background:var(--mdr-bg);}
+  .l6{background:var(--sub-bg);}
 
   .legend{display:flex; gap:14px; justify-content:center; margin-top:16px; font-size:11.5px; color:#555; flex-wrap:wrap;}
   .legend span{display:flex; align-items:center; gap:5px;}
@@ -112,6 +114,7 @@
   <span><span class="dot" style="background:var(--ast-bg)"></span>Asisten</span>
   <span><span class="dot" style="background:var(--m1-bg)"></span>Mandor 1 / Krani 1</span>
   <span><span class="dot" style="background:var(--mdr-bg)"></span>Mandor / Krani</span>
+  <span><span class="dot" style="background:var(--sub-bg)"></span>Sub Mandor/Krani</span>
   <span style="color:var(--vacant); font-weight:bold">Vacant = posisi kosong</span>
 </div>
 
@@ -122,15 +125,16 @@
 const SHEET_ID = '1mHMrWu6yQ7p6gL_fQz_G6fa8ew2V2LcJ3WHZXwYZo7c';
 const CSV = sheet => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&t=${Date.now()}`;
 
-/* ============ Ketentuan kode 10 digit ============
-   Digit 1    : Perusahaan
-   Digit 2-3  : Manager / Departemen
-   Digit 4    : Asisten Kepala (Askep)
-   Digit 5    : Koordinator
-   Digit 6-7  : Asisten
-   Digit 8    : Mandor 1 / Krani 1
-   Digit 9-10 : Mandor / Krani                                    */
-const GRUP = [[3,1],[4,1],[5,2],[7,1],[8,2]]; // [start,len] ASK,KRD,AST,MK1,MDK
+/* ============ Ketentuan kode 12 digit ============
+   Digit 1     : Perusahaan
+   Digit 2-3   : Manager / Departemen
+   Digit 4     : Asisten Kepala (Askep)
+   Digit 5     : Koordinator
+   Digit 6-7   : Asisten
+   Digit 8     : Mandor 1 / Krani 1
+   Digit 9-10  : Mandor / Krani
+   Digit 11-12 : Sub Mandor/Krani                                 */
+const GRUP = [[3,1],[4,1],[5,2],[7,1],[8,2],[10,2]]; // [start,len] ASK,KRD,AST,MK1,MDK,SUB
 function parentKode(k){
   for(let i=GRUP.length-1;i>=0;i--){
     const [s,l]=GRUP[i];
@@ -138,15 +142,17 @@ function parentKode(k){
   }
   return null;
 }
-// Level: 0 Manager | 1 Askep | 2 Koordinator | 3 Asisten | 4 Mandor1/Krani1 | 5 Mandor/Krani
+// Level: 0 Manager | 1 Askep | 2 Koordinator | 3 Asisten | 4 Mandor1/Krani1 | 5 Mandor/Krani | 6 Sub
 function levelOf(k){
-  const ask=+k.substr(3,1), krd=+k.substr(4,1), ast=+k.substr(5,2), mk1=+k.substr(7,1), mdk=+k.substr(8,2);
-  if(ask===0 && krd===0 && ast===0 && mk1===0 && mdk===0) return 0;
-  if(krd===0 && ast===0 && mk1===0 && mdk===0) return 1;
-  if(ast===0 && mk1===0 && mdk===0) return 2;
-  if(mk1===0 && mdk===0) return 3;
-  if(mdk===0) return 4;
-  return 5;
+  const ask=+k.substr(3,1), krd=+k.substr(4,1), ast=+k.substr(5,2),
+        mk1=+k.substr(7,1), mdk=+k.substr(8,2), sub=+k.substr(10,2);
+  if(ask===0 && krd===0 && ast===0 && mk1===0 && mdk===0 && sub===0) return 0;
+  if(krd===0 && ast===0 && mk1===0 && mdk===0 && sub===0) return 1;
+  if(ast===0 && mk1===0 && mdk===0 && sub===0) return 2;
+  if(mk1===0 && mdk===0 && sub===0) return 3;
+  if(mdk===0 && sub===0) return 4;
+  if(sub===0) return 5;
+  return 6;
 }
 
 /* ================== CSV parser ================== */
@@ -190,13 +196,31 @@ async function loadData(){
     }
     // --- Struktur: cari kolom via header
     const head=sRows[0].map(h=>h.trim().toLowerCase());
-    const iK=head.indexOf('kode'), iJ=head.indexOf('nama jabatan'), iN=head.indexOf('nama');
-    if(iK<0||iJ<0||iN<0) throw new Error('Kolom Kode / Nama Jabatan / Nama tidak ditemukan');
+    const iJ=head.indexOf('nama jabatan'), iN=head.indexOf('nama'), iK=head.indexOf('kode');
+    if(iJ<0||iN<0) throw new Error('Kolom Nama Jabatan / Nama tidak ditemukan');
+    // kode 12 digit dibangun dari kolom digit (SUB opsional, default 00)
+    const DIGCOL=['dir','mgr','ask','krd','ast','mk1','mdk','sub'].map(h=>head.indexOf(h));
+    const DIGW=[1,2,1,1,2,1,2,2];
+    function buildKode(r){
+      let k='';
+      for(let i=0;i<8;i++){
+        let v = DIGCOL[i]>=0 ? (r[DIGCOL[i]]||'').trim() : '';
+        if(v===''){ if(i===7){v='0';} else return null; }
+        if(!/^\d+$/.test(v)) return null;
+        k+=v.padStart(DIGW[i],'0').slice(-DIGW[i]);
+      }
+      return k;
+    }
     nodes={};
     const order=[];
     sRows.slice(1).forEach(r=>{
-      const k=(r[iK]||'').trim();
-      if(!/^\d{10}$/.test(k) || nodes[k]) return;
+      let k=buildKode(r);
+      if(!k && iK>=0){ // cadangan: pakai kolom Kode
+        const kk=(r[iK]||'').trim();
+        if(/^\d{10}$/.test(kk)) k=kk+'00';
+        else if(/^\d{12}$/.test(kk)) k=kk;
+      }
+      if(!k || nodes[k]) return;
       nodes[k]={k, j:(r[iJ]||'').trim(), n:(r[iN]||'').trim(), lv:levelOf(k), children:[]};
       order.push(k);
     });
@@ -277,27 +301,33 @@ function placeStack(list){
   curX+=PW;
   return c;
 }
-// node horizontal (lv<=3): Manager, Askep, Koordinator, Asisten
+// punya cucu? (anak yang masih punya anak)
+const hasGrand = n => n.children.some(c=>c.children.length);
+// node horizontal: level atas (lv<=3) atau node yang punya cucu
 function placeGroup(n){
   if(!n.children.length){
     pos[n.k]={x:curX, y:BY(n.lv)};
     const c=curX+CW/2; curX+=PW; return c;
   }
-  // partisi anak: horizontal (lv<4) / kolom Mandor1 (lv4) / tumpukan lv5 langsung
-  // tumpukan lv5 dipisah per digit 8 (grup/shift Mandor 1) agar beda grup beda kolom
+  // partisi anak:
+  //  - punya cucu  -> grup horizontal (rekursif)
+  //  - punya anak  -> kolom sendiri (kepala sejajar di pitanya)
+  //  - tanpa anak  -> ditumpuk, dipisah per digit 8 (grup/shift)
   const items=[]; const stkMap={};
   n.children.forEach(ch=>{
-    if(ch.lv>=5){
+    if(!ch.children.length && ch.lv>=4){
       const key=ch.k.substr(7,1);
       if(!stkMap[key]){ stkMap[key]={type:'stack', list:[]}; items.push(stkMap[key]); }
-      stkMap[key].list.push(ch, ...flat(ch));
+      stkMap[key].list.push(ch);
     }else{
       items.push({type:'node', node:ch});
     }
   });
   const centers=items.map(it=>{
     if(it.type==='stack') return placeStack(it.list);
-    return it.node.lv<4 ? placeGroup(it.node) : placeColumn(it.node);
+    const ch=it.node;
+    if(ch.lv<=3 || hasGrand(ch)) return placeGroup(ch);
+    return ch.children.length ? placeColumn(ch) : placeGroup(ch);
   });
   const c=(Math.min(...centers)+Math.max(...centers))/2;
   pos[n.k]={x:c-CW/2, y:BY(n.lv)};
@@ -324,7 +354,7 @@ function render(){
   BY=lv=>bandIdx[lv]*BH;
 
   pos={}; lines=[]; curX=0;
-  dept.roots.forEach(r=>{ r.lv<4 ? placeGroup(r) : placeColumn(r); });
+  dept.roots.forEach(r=>{ (r.lv<=3 || hasGrand(r) || !r.children.length) ? placeGroup(r) : placeColumn(r); });
 
   let maxX=0, maxY=0;
   Object.values(pos).forEach(p=>{ maxX=Math.max(maxX,p.x+CW); maxY=Math.max(maxY,p.y+CH); });
