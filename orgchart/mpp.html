@@ -101,7 +101,7 @@ function parseCSV(text){
 }
 const norm = s => (s||'').trim();
 const baseJabatan = j => norm(j).replace(/^Act\.\s*/i,'').trim();
-const isVac = n => { const s=norm(n).toLowerCase(); return s===''||s==='vacant'; };
+const isVac = n => { const s=norm(n).toLowerCase(); return s===''||s.startsWith('vacant'); };
 
 let deptData={}, deptOrder=[];
 
@@ -169,14 +169,13 @@ function render(){
     let sub={norma:0,keb:0,tetap:0,kontrak:0,total:0,thN:0,thK:0};
     lvData.order.forEach((k,idx)=>{
       const grp=lvData.groups[k];
-      const filled=grp.rows.filter(r=>!isVac(r.nama));
       const norma=grp.rows.reduce((s,r)=>s+r.norma,0);
       const keb=norma;
       const tetap=grp.rows.filter(r=>r.status.includes('tetap')).reduce((s,r)=>s+r.actual,0);
       const kontrak=grp.rows.filter(r=>r.status.includes('kontrak')).reduce((s,r)=>s+r.actual,0);
       const total=grp.rows.reduce((s,r)=>s+r.actual,0);
       const thN=total-norma, thK=total-keb;
-      const rs=Math.max(1, filled.length);
+      const rs=Math.max(1, grp.rows.length);
       levelRows+=rs;
       sub.norma+=norma; sub.keb+=keb; sub.tetap+=tetap; sub.kontrak+=kontrak; sub.total+=total; sub.thN+=thN; sub.thK+=thK;
 
@@ -190,11 +189,12 @@ function render(){
         <td class="num" rowspan="${rs}">${total}</td>
         <td class="num" rowspan="${rs}">${thN}</td>
         <td class="num" rowspan="${rs}">${thK}</td>${extra}`;
+      const cellFor = r => `<td class="nik">${r.nik||''}</td><td class="nama${isVac(r.nama)?' vac':''}">${r.nama?r.nama:'Vacant'}</td>`;
 
-      if(filled.length){
-        jabHtml.push(`<tr>${numsTd(`<td class="nik">${filled[0].nik||''}</td><td class="nama">${filled[0].nama}</td>`)}</tr>`);
-        for(let i=1;i<filled.length;i++){
-          jabHtml.push(`<tr><td class="nik">${filled[i].nik||''}</td><td class="nama">${filled[i].nama}</td></tr>`);
+      if(grp.rows.length){
+        jabHtml.push(`<tr>${numsTd(cellFor(grp.rows[0]))}</tr>`);
+        for(let i=1;i<grp.rows.length;i++){
+          jabHtml.push(`<tr>${cellFor(grp.rows[i])}</tr>`);
         }
       }else{
         jabHtml.push(`<tr>${numsTd(`<td class="nik"></td><td class="nama vac">Vacant</td>`)}</tr>`);
