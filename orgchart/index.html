@@ -15,6 +15,7 @@
     --m1-bg:#ffe94d;
     --mdr-bg:#bdd7ee;
     --sub-bg:#e2efda;
+    --wrk-bg:#fff2cc;
     --line:#555;
     --jab:#1a1a2e;
     --nama:#14406b;
@@ -71,6 +72,7 @@
   .l4{background:var(--m1-bg);}
   .l5{background:var(--mdr-bg);}
   .l6{background:var(--sub-bg);}
+  .l7{background:var(--wrk-bg);}
 
   .legend{display:flex; gap:14px; justify-content:center; margin-top:16px; font-size:11.5px; color:#555; flex-wrap:wrap;}
   .legend span{display:flex; align-items:center; gap:5px;}
@@ -84,6 +86,7 @@
 </style>
 </head>
 <body>
+<div style="text-align:center; font-size:12.5px; margin-bottom:6px;"><a href="mpp.html" style="color:#1155cc; text-decoration:none;">Lihat Man Power Planning &rarr;</a></div>
 <h1 id="title">Struktur Organisasi</h1>
 
 <div class="controls">
@@ -115,6 +118,7 @@
   <span><span class="dot" style="background:var(--m1-bg)"></span>Mandor 1 / Krani 1</span>
   <span><span class="dot" style="background:var(--mdr-bg)"></span>Mandor / Krani</span>
   <span><span class="dot" style="background:var(--sub-bg)"></span>Sub Mandor/Krani</span>
+  <span><span class="dot" style="background:var(--wrk-bg)"></span>Worker</span>
   <span style="color:var(--vacant); font-weight:bold">Vacant = posisi kosong</span>
 </div>
 
@@ -125,7 +129,7 @@
 const SHEET_ID = '1mHMrWu6yQ7p6gL_fQz_G6fa8ew2V2LcJ3WHZXwYZo7c';
 const CSV = sheet => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&t=${Date.now()}`;
 
-/* ============ Ketentuan kode 12 digit ============
+/* ============ Ketentuan kode 14 digit ============
    Digit 1     : Perusahaan
    Digit 2-3   : Manager / Departemen
    Digit 4     : Asisten Kepala (Askep)
@@ -133,8 +137,9 @@ const CSV = sheet => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq
    Digit 6-7   : Asisten
    Digit 8     : Mandor 1 / Krani 1
    Digit 9-10  : Mandor / Krani
-   Digit 11-12 : Sub Mandor/Krani                                 */
-const GRUP = [[3,1],[4,1],[5,2],[7,1],[8,2],[10,2]]; // [start,len] ASK,KRD,AST,MK1,MDK,SUB
+   Digit 11-12 : Sub Mandor/Krani
+   Digit 13-14 : Worker                                            */
+const GRUP = [[3,1],[4,1],[5,2],[7,1],[8,2],[10,2],[12,2]]; // [start,len] ASK,KRD,AST,MK1,MDK,SUB,WRK
 function parentKode(k){
   for(let i=GRUP.length-1;i>=0;i--){
     const [s,l]=GRUP[i];
@@ -142,17 +147,18 @@ function parentKode(k){
   }
   return null;
 }
-// Level: 0 Manager | 1 Askep | 2 Koordinator | 3 Asisten | 4 Mandor1/Krani1 | 5 Mandor/Krani | 6 Sub
+// Level: 0 Manager | 1 Askep | 2 Koordinator | 3 Asisten | 4 Mandor1/Krani1 | 5 Mandor/Krani | 6 Sub | 7 Worker
 function levelOf(k){
   const ask=+k.substr(3,1), krd=+k.substr(4,1), ast=+k.substr(5,2),
-        mk1=+k.substr(7,1), mdk=+k.substr(8,2), sub=+k.substr(10,2);
-  if(ask===0 && krd===0 && ast===0 && mk1===0 && mdk===0 && sub===0) return 0;
-  if(krd===0 && ast===0 && mk1===0 && mdk===0 && sub===0) return 1;
-  if(ast===0 && mk1===0 && mdk===0 && sub===0) return 2;
-  if(mk1===0 && mdk===0 && sub===0) return 3;
-  if(mdk===0 && sub===0) return 4;
-  if(sub===0) return 5;
-  return 6;
+        mk1=+k.substr(7,1), mdk=+k.substr(8,2), sub=+k.substr(10,2), wrk=+k.substr(12,2);
+  if(ask===0 && krd===0 && ast===0 && mk1===0 && mdk===0 && sub===0 && wrk===0) return 0;
+  if(krd===0 && ast===0 && mk1===0 && mdk===0 && sub===0 && wrk===0) return 1;
+  if(ast===0 && mk1===0 && mdk===0 && sub===0 && wrk===0) return 2;
+  if(mk1===0 && mdk===0 && sub===0 && wrk===0) return 3;
+  if(mdk===0 && sub===0 && wrk===0) return 4;
+  if(sub===0 && wrk===0) return 5;
+  if(wrk===0) return 6;
+  return 7;
 }
 
 /* ================== CSV parser ================== */
@@ -198,14 +204,15 @@ async function loadData(){
     const head=sRows[0].map(h=>h.trim().toLowerCase());
     const iJ=head.indexOf('nama jabatan'), iN=head.indexOf('nama'), iK=head.indexOf('kode');
     if(iJ<0||iN<0) throw new Error('Kolom Nama Jabatan / Nama tidak ditemukan');
-    // kode 12 digit dibangun dari kolom digit (SUB opsional, default 00)
-    const DIGCOL=['dir','mgr','ask','krd','ast','mk1','mdk','sub'].map(h=>head.indexOf(h));
-    const DIGW=[1,2,1,1,2,1,2,2];
+    // kode 14 digit dibangun dari kolom digit (SUB & WRK opsional, default 00)
+    const DIGKEYS=['dir','mgr','ask','krd','ast','mk1','mdk','sub','wrk'];
+    const DIGCOL=DIGKEYS.map(h=>head.indexOf(h));
+    const DIGW=[1,2,1,1,2,1,2,2,2];
     function buildKode(r){
       let k='';
-      for(let i=0;i<8;i++){
+      for(let i=0;i<DIGKEYS.length;i++){
         let v = DIGCOL[i]>=0 ? (r[DIGCOL[i]]||'').trim() : '';
-        if(v===''){ if(i===7){v='0';} else return null; }
+        if(v===''){ if(i>=7){v='0';} else return null; } // sub(7) & wrk(8) opsional
         if(!/^\d+$/.test(v)) return null;
         k+=v.padStart(DIGW[i],'0').slice(-DIGW[i]);
       }
@@ -215,10 +222,11 @@ async function loadData(){
     const order=[];
     sRows.slice(1).forEach(r=>{
       let k=buildKode(r);
-      if(!k && iK>=0){ // cadangan: pakai kolom Kode
+      if(!k && iK>=0){ // cadangan: pakai kolom Kode, lengkapi ke 14 digit
         const kk=(r[iK]||'').trim();
-        if(/^\d{10}$/.test(kk)) k=kk+'00';
-        else if(/^\d{12}$/.test(kk)) k=kk;
+        if(/^\d{10}$/.test(kk)) k=kk+'0000';
+        else if(/^\d{12}$/.test(kk)) k=kk+'00';
+        else if(/^\d{14}$/.test(kk)) k=kk;
       }
       if(!k || nodes[k]) return;
       nodes[k]={k, j:(r[iJ]||'').trim(), n:(r[iN]||'').trim(), lv:levelOf(k), children:[]};
