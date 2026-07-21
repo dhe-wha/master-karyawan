@@ -115,7 +115,7 @@ async function loadData(){
     const rows=parseCSV(await res.text());
     const head=rows[0].map(h=>h.trim().toLowerCase());
     const iJ=head.indexOf('nama jabatan'), iN=head.indexOf('nama'), iL=head.indexOf('level'),
-          iNik=head.indexOf('nik'), iDept=head.indexOf('departemen'),
+          iNik=(head.indexOf('nik_fix')>=0?head.indexOf('nik_fix'):head.indexOf('nik')), iDept=head.indexOf('departemen'),
           iNorma=head.indexOf('norma'), iActual=head.indexOf('actual'), iStatus=head.indexOf('status');
     if(iJ<0||iN<0||iL<0) throw new Error('Kolom Nama Jabatan / Nama / Level tidak ditemukan di sheet Struktur');
 
