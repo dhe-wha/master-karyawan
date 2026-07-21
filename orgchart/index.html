@@ -371,8 +371,9 @@ function render(){
   let html=`<svg width="${maxX}" height="${maxY}"><path d="${lines.join(' ')}" stroke="#555" stroke-width="1.6" fill="none"/></svg>`;
   all.forEach(n=>{
     const p=pos[n.k]; if(!p) return;
+    const jabTxt = n.lv===6 ? n.k.substr(10,2)+' '+n.j : n.j;
     html+=`<div class="card l${n.lv}" style="left:${p.x}px; top:${p.y}px; width:${CW}px; height:${CH}px">
-      <div class="jab">${n.j}</div>
+      <div class="jab">${jabTxt}</div>
       <div class="nm${isVac(n)?' vac':''}">${isVac(n)?'Vacant':n.n}</div>
     </div>`;
   });
