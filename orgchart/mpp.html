@@ -44,14 +44,16 @@
   tr.subtotal td.jab{text-align:center;}
   .msg{padding:30px; text-align:center; color:#888;}
   .msg.err{color:var(--vacant);}
-  .signblock{display:flex; gap:24px; margin:36px 0 10px; padding:0 8px;}
+  .sig-date{margin:44px 0 0; padding:0 8px; font-size:13px;}
+  .signblock{display:flex; gap:24px; margin:20px 0 10px; padding:0 8px;}
   .sigcol{flex:1; text-align:center; font-size:13px;}
-  .sig-role{font-weight:bold; margin-bottom:70px;}
+  .sig-role{font-weight:bold; margin-bottom:110px;}
   .sig-line{border-bottom:1px solid #000; margin:0 10px;}
   .sig-jab{font-weight:bold; margin-top:4px;}
   @media print{
     .toolbar,.controls,.nav,.note{display:none;}
     body{padding:0;}
+    h1{margin-bottom:1em;}
     .tblwrap{border:none; max-height:none; overflow:visible;}
     thead th{position:static;}
     .signblock{margin-top:24px;}
@@ -73,6 +75,8 @@
 </div>
 
 <div class="tblwrap"><div class="msg" id="chart">Memuat data…</div></div>
+
+<div class="sig-date">Disepakati tanggal : _______________</div>
 
 <div class="signblock">
   <div class="sigcol">
