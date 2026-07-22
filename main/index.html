@@ -49,6 +49,10 @@
   .sidebar{width:264px; flex-shrink:0; background:var(--bg-sidebar); border-right:1px solid var(--border-sb); display:flex; flex-direction:column; height:100vh; position:sticky; top:0; overflow-y:auto; color:var(--text-sb);}
   .sidebar::-webkit-scrollbar{width:6px;}
   .sidebar::-webkit-scrollbar-thumb{background:var(--border-sb); border-radius:10px;}
+  .recruithub-btn{display:flex; align-items:center; justify-content:center; margin:auto 20px 20px; padding:13px 16px; border-radius:10px; background:#141A2B; border:1px solid var(--border-sb); text-decoration:none; font-family:var(--font-display); font-weight:800; font-size:16px; letter-spacing:-0.2px; transition:.15s;}
+  .recruithub-btn:hover{border-color:var(--purple);}
+  .recruithub-btn .rh-recruit{color:var(--text-sb);}
+  .recruithub-btn .rh-hub{color:var(--orange);}
   .brand{padding:22px 20px 18px; border-bottom:1px solid var(--border-sb);}
   .brand-name{font-size:21px; font-weight:800; letter-spacing:-0.3px; margin:0;}
   .brand-name .a{color:var(--text-sb);}
@@ -392,6 +396,8 @@
       <span class="item-label">Pengaturan</span>
     </div>
   </div>
+
+  <a class="recruithub-btn" href="https://hrga.btliglbja.site/rekruts/" target="_self"><span class="rh-recruit">Recruit</span><span class="rh-hub">Hub</span></a>
 </nav>
 
 <div class="content" id="content">
