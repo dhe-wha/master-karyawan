@@ -44,11 +44,17 @@
   tr.subtotal td.jab{text-align:center;}
   .msg{padding:30px; text-align:center; color:#888;}
   .msg.err{color:var(--vacant);}
+  .signblock{display:flex; gap:24px; margin:36px 0 10px; padding:0 8px;}
+  .sigcol{flex:1; text-align:center; font-size:13px;}
+  .sig-role{font-weight:bold; margin-bottom:70px;}
+  .sig-line{border-bottom:1px solid #000; margin:0 10px;}
+  .sig-jab{font-weight:bold; margin-top:4px;}
   @media print{
     .toolbar,.controls,.nav,.note{display:none;}
     body{padding:0;}
     .tblwrap{border:none; max-height:none; overflow:visible;}
     thead th{position:static;}
+    .signblock{margin-top:24px;}
   }
 </style>
 </head>
@@ -67,6 +73,29 @@
 </div>
 
 <div class="tblwrap"><div class="msg" id="chart">Memuat data…</div></div>
+
+<div class="signblock">
+  <div class="sigcol">
+    <div class="sig-role">Disusun Oleh</div>
+    <div class="sig-line"></div>
+    <div class="sig-jab">Askep HRGA</div>
+  </div>
+  <div class="sigcol">
+    <div class="sig-role">Diperiksa Oleh</div>
+    <div class="sig-line"></div>
+    <div class="sig-jab">Askep Departemen</div>
+  </div>
+  <div class="sigcol">
+    <div class="sig-role">Disetujui Oleh</div>
+    <div class="sig-line"></div>
+    <div class="sig-jab">Manager Departemen</div>
+  </div>
+  <div class="sigcol">
+    <div class="sig-role">Diketahui Oleh</div>
+    <div class="sig-line"></div>
+    <div class="sig-jab">Direktur</div>
+  </div>
+</div>
 
 <script>
 const SHEET_ID='1mHMrWu6yQ7p6gL_fQz_G6fa8ew2V2LcJ3WHZXwYZo7c';
