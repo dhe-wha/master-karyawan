@@ -291,10 +291,12 @@ function V(x,y1,y2){ if(y2>y1) lines.push(`M${x} ${y1} L${x} ${y2}`); }
 function Hln(y,x1,x2){ if(x2>x1) lines.push(`M${x1} ${y} L${x2} ${y}`); }
 
 // kolom: kepala (Mandor1/Krani1) + turunannya ditumpuk vertikal sesuai pita level.
-// Jika anak langsung berada di level Mandor/Krani (dibedakan oleh digit MDK), grup MDK
-// yang beranggota >1 (mis. "Mandor PWH" vs "Mandor Scaller") dipisah jadi cabang/kolom
-// sendiri; grup MDK tunggal (daftar pekerja sejenis, mis. Mandor Tanaman 01-05) tetap
-// ditumpuk lurus dalam kolom yang sama seperti sebelumnya.
+// Jika anak langsung berada di level Mandor/Krani ke bawah, dikelompokkan per
+// (digit MDK + level) - dibedakan oleh MDK (mis. "Mandor PWH" vs "Mandor Scaller")
+// MAUPUN oleh level yg beda walau MDK sama (mis. "Safety Officer"=Sub Mandor/Krani
+// vs "Compound"=Worker, sama2 anak Mandor Safety tapi harus jadi cabang terpisah).
+// Grup beranggota >1 dipisah jadi cabang/kolom sendiri; grup tunggal (daftar pekerja
+// sejenis, mis. Mandor Tanaman 01-05) tetap ditumpuk lurus dalam kolom yang sama.
 function placeColumn(n){
   const cx=curX, c=cx+CW/2;
   pos[n.k]={x:cx, y:BY(n.lv)};
@@ -303,7 +305,7 @@ function placeColumn(n){
   if(n.children.length && n.children[0].lv>=5){
     const mdkGroups={}; const order=[];
     n.children.forEach(ch=>{
-      const key=ch.k.substr(8,2);
+      const key=ch.k.substr(8,2)+'|'+ch.lv;
       if(!mdkGroups[key]){ mdkGroups[key]=[]; order.push(key); }
       mdkGroups[key].push(ch);
     });
